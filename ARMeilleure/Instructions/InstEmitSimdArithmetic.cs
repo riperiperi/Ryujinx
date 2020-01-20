@@ -3121,7 +3121,7 @@ namespace ARMeilleure.Instructions
             context.Copy(GetVec(op.Rd), res);
         }
 
-        private static Operand EmitSse2VectorIsQNaNOpF(ArmEmitterContext context, Operand opF)
+        public static Operand EmitSse2VectorIsQNaNOpF(ArmEmitterContext context, Operand opF)
         {
             IOpCodeSimd op = (IOpCodeSimd)context.CurrOp;
 

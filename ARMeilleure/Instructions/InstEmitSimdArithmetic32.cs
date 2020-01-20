@@ -15,7 +15,28 @@ namespace ARMeilleure.Instructions
     {
         public static void Vabs_S(ArmEmitterContext context)
         {
-            EmitScalarUnaryOpF32(context, (op1) => EmitUnaryMathCall(context, MathF.Abs, Math.Abs, op1));
+            OpCode32SimdS op = (OpCode32SimdS)context.CurrOp;
+            if (Optimizations.FastFP && Optimizations.UseSse2)
+            {
+                EmitScalarUnaryOpSimd32(context, (m) =>
+                {
+                    if ((op.Size & 1) == 0)
+                    {
+                        Operand mask = X86GetScalar(context, -0f);
+                        return context.AddIntrinsic(Intrinsic.X86Andnps, mask, m);
+                    }
+                    else
+                    {
+                        Operand mask = X86GetScalar(context, -0d);
+                        return context.AddIntrinsic(Intrinsic.X86Andnpd, mask, m);
+                    }
+                });
+            }
+            else
+            {
+                EmitScalarUnaryOpF32(context, (op1) => EmitUnaryMathCall(context, MathF.Abs, Math.Abs, op1));
+            }
+            
         }
 
         public static void Vabs_V(ArmEmitterContext context)
@@ -24,7 +45,26 @@ namespace ARMeilleure.Instructions
 
             if (op.F)
             {
-                EmitVectorUnaryOpF32(context, (op1) => EmitUnaryMathCall(context, MathF.Abs, Math.Abs, op1));
+                if (Optimizations.FastFP && Optimizations.UseSse2)
+                {
+                    EmitVectorUnaryOpSimd32(context, (m) =>
+                    {
+                        if ((op.Size & 1) == 0)
+                        {
+                            Operand mask = X86GetScalar(context, -0f);
+                            return context.AddIntrinsic(Intrinsic.X86Andnps, mask, m);
+                        }
+                        else
+                        {
+                            Operand mask = X86GetScalar(context, -0d);
+                            return context.AddIntrinsic(Intrinsic.X86Andnpd, mask, m);
+                        }
+                    });
+                } 
+                else
+                {
+                    EmitVectorUnaryOpF32(context, (op1) => EmitUnaryMathCall(context, MathF.Abs, Math.Abs, op1));
+                }
             } 
             else
             {
@@ -177,18 +217,80 @@ namespace ARMeilleure.Instructions
 
         public static void Vneg_S(ArmEmitterContext context)
         {
-            //TODO: intrinsic that XORs the sign bit
-            EmitScalarUnaryOpF32(context, (op1) => context.Negate(op1));
+            OpCode32SimdS op = (OpCode32SimdS)context.CurrOp;
+            if (Optimizations.UseSse2)
+            {
+                EmitScalarUnaryOpSimd32(context, (m) =>
+                {
+                    if ((op.Size & 1) == 0)
+                    {
+                        Operand mask = X86GetScalar(context, -0f);
+                        return context.AddIntrinsic(Intrinsic.X86Xorps, mask, m);
+                    }
+                    else
+                    {
+                        Operand mask = X86GetScalar(context, -0d);
+                        return context.AddIntrinsic(Intrinsic.X86Xorpd, mask, m);
+                    }
+                });
+            }
+            else
+            {
+                EmitScalarUnaryOpF32(context, (op1) => context.Negate(op1));
+            }
         }
 
         public static void Vnmul_S(ArmEmitterContext context)
         {
-            EmitScalarBinaryOpF32(context, (op1, op2) => context.Negate(context.Multiply(op1, op2)));
+            OpCode32SimdRegS op = (OpCode32SimdRegS)context.CurrOp;
+            if (Optimizations.UseSse2)
+            {
+                EmitScalarBinaryOpSimd32(context, (n, m) =>
+                {
+                    if ((op.Size & 1) == 0)
+                    {
+                        Operand res = context.AddIntrinsic(Intrinsic.X86Mulss, n, m);
+                        Operand mask = X86GetScalar(context, -0f);
+                        return context.AddIntrinsic(Intrinsic.X86Xorps, mask, res);
+                    }
+                    else
+                    {
+                        Operand res = context.AddIntrinsic(Intrinsic.X86Mulsd, n, m);
+                        Operand mask = X86GetScalar(context, -0d);
+                        return context.AddIntrinsic(Intrinsic.X86Xorpd, mask, res);
+                    }
+                });
+            }
+            else
+            {
+                EmitScalarBinaryOpF32(context, (op1, op2) => context.Negate(context.Multiply(op1, op2)));
+            }
         }
 
         public static void Vnmla_S(ArmEmitterContext context)
         {
-            if (Optimizations.FastFP)
+            OpCode32SimdRegS op = (OpCode32SimdRegS)context.CurrOp;
+            if (Optimizations.FastFP && Optimizations.UseSse2)
+            {
+                EmitScalarTernaryOpSimd32(context, (d, n, m) =>
+                {
+                    if ((op.Size & 1) == 0)
+                    {
+                        Operand res = context.AddIntrinsic(Intrinsic.X86Mulss, n, m);
+                        res = context.AddIntrinsic(Intrinsic.X86Addss, d, res);
+                        Operand mask = X86GetScalar(context, -0f);
+                        return context.AddIntrinsic(Intrinsic.X86Xorps, mask, res);
+                    }
+                    else
+                    {
+                        Operand res = context.AddIntrinsic(Intrinsic.X86Mulsd, n, m);
+                        res = context.AddIntrinsic(Intrinsic.X86Addsd, d, res);
+                        Operand mask = X86GetScalar(context, -0d);
+                        return context.AddIntrinsic(Intrinsic.X86Xorpd, mask, res);
+                    }
+                });
+            }
+            else if (Optimizations.FastFP)
             {
                 EmitScalarTernaryOpF32(context, (op1, op2, op3) =>
                 {
@@ -206,7 +308,29 @@ namespace ARMeilleure.Instructions
 
         public static void Vnmls_S(ArmEmitterContext context)
         {
-            if (Optimizations.FastFP)
+            OpCode32SimdRegS op = (OpCode32SimdRegS)context.CurrOp;
+            if (Optimizations.FastFP && Optimizations.UseSse2)
+            {
+                EmitScalarTernaryOpSimd32(context, (d, n, m) =>
+                {
+                    if ((op.Size & 1) == 0)
+                    {
+                        Operand res = context.AddIntrinsic(Intrinsic.X86Mulss, n, m);
+                        Operand mask = X86GetScalar(context, -0f);
+                        d = context.AddIntrinsic(Intrinsic.X86Xorps, mask, d);
+                        return context.AddIntrinsic(Intrinsic.X86Addss, d, res);
+
+                    }
+                    else
+                    {
+                        Operand res = context.AddIntrinsic(Intrinsic.X86Mulsd, n, m);
+                        Operand mask = X86GetScalar(context, -0d);
+                        d = context.AddIntrinsic(Intrinsic.X86Xorpd, mask, res);
+                        return context.AddIntrinsic(Intrinsic.X86Addsd, d, res);
+                    }
+                });
+            }
+            else if (Optimizations.FastFP)
             {
                 EmitScalarTernaryOpF32(context, (op1, op2, op3) =>
                 {
@@ -224,9 +348,30 @@ namespace ARMeilleure.Instructions
 
         public static void Vneg_V(ArmEmitterContext context)
         {
-            if ((context.CurrOp as OpCode32Simd).F)
+            OpCode32Simd op = (OpCode32Simd)context.CurrOp;
+
+            if (op.F)
             {
-                EmitVectorUnaryOpF32(context, (op1) => context.Negate(op1));
+                if (Optimizations.UseSse2)
+                {
+                    EmitVectorUnaryOpSimd32(context, (m) =>
+                    {
+                        if ((op.Size & 1) == 0)
+                        {
+                            Operand mask = X86GetScalar(context, -0f);
+                            return context.AddIntrinsic(Intrinsic.X86Xorps, mask, m);
+                        }
+                        else
+                        {
+                            Operand mask = X86GetScalar(context, -0d);
+                            return context.AddIntrinsic(Intrinsic.X86Xorpd, mask, m);
+                        }
+                    });
+                }
+                else
+                {
+                    EmitVectorUnaryOpF32(context, (op1) => context.Negate(op1));
+                }
             } 
             else
             {
@@ -255,22 +400,44 @@ namespace ARMeilleure.Instructions
 
         public static void VmaxNm_S(ArmEmitterContext context)
         {
-            EmitScalarBinaryOpF32(context, (op1, op2) => EmitSoftFloatCall(context, SoftFloat32.FPMaxNum, SoftFloat64.FPMaxNum, op1, op2));
+            if (Optimizations.FastFP && Optimizations.UseSse41)
+            {
+                EmitSse41MaxMinNumOpF32(context, true, true);
+            }
+            else
+            {
+                EmitScalarBinaryOpF32(context, (op1, op2) => EmitSoftFloatCall(context, SoftFloat32.FPMaxNum, SoftFloat64.FPMaxNum, op1, op2));
+            }
         }
 
         public static void VminNm_S(ArmEmitterContext context)
         {
-            EmitScalarBinaryOpF32(context, (op1, op2) => EmitSoftFloatCall(context, SoftFloat32.FPMinNum, SoftFloat64.FPMinNum, op1, op2));
+            if (Optimizations.FastFP && Optimizations.UseSse41)
+            {
+                EmitSse41MaxMinNumOpF32(context, false, true);
+            }
+            else
+            {
+                EmitScalarBinaryOpF32(context, (op1, op2) => EmitSoftFloatCall(context, SoftFloat32.FPMinNum, SoftFloat64.FPMinNum, op1, op2));
+            }
         }
 
         public static void VmaxminNm_V(ArmEmitterContext context)
         {
             OpCode32SimdReg op = (OpCode32SimdReg)context.CurrOp;
             bool max = (op.Size & 2) == 0; // Op is high bit of size (not used for fp).
-            _F32_F32_F32_Bool f32 = max ? new _F32_F32_F32_Bool(SoftFloat32.FPMaxNumFpscr) : new _F32_F32_F32_Bool(SoftFloat32.FPMinNumFpscr);
-            _F64_F64_F64_Bool f64 = max ? new _F64_F64_F64_Bool(SoftFloat64.FPMaxNumFpscr) : new _F64_F64_F64_Bool(SoftFloat64.FPMinNumFpscr);
 
-            EmitVectorBinaryOpSx32(context, (op1, op2) => EmitSoftFloatCallDefaultFpscr(context, f32, f64, op1, op2));
+            if (Optimizations.FastFP && Optimizations.UseSse41)
+            {
+                EmitSse41MaxMinNumOpF32(context, max, false);
+            }
+            else
+            {
+                _F32_F32_F32_Bool f32 = max ? new _F32_F32_F32_Bool(SoftFloat32.FPMaxNumFpscr) : new _F32_F32_F32_Bool(SoftFloat32.FPMinNumFpscr);
+                _F64_F64_F64_Bool f64 = max ? new _F64_F64_F64_Bool(SoftFloat64.FPMaxNumFpscr) : new _F64_F64_F64_Bool(SoftFloat64.FPMinNumFpscr);
+
+                EmitVectorBinaryOpSx32(context, (op1, op2) => EmitSoftFloatCallDefaultFpscr(context, f32, f64, op1, op2));
+            }
         }
 
         public static void Vmax_V(ArmEmitterContext context)
@@ -286,12 +453,12 @@ namespace ARMeilleure.Instructions
                     return EmitSoftFloatCallDefaultFpscr(context, SoftFloat32.FPMaxFpscr, SoftFloat64.FPMaxFpscr, op1, op2);
                 });
             }
-
         }
 
         public static void Vmax_I(ArmEmitterContext context)
         {
             OpCode32SimdReg op = (OpCode32SimdReg)context.CurrOp;
+
             if (op.U)
             {
                 EmitVectorBinaryOpZx32(context, (op1, op2) => context.ConditionalSelect(context.ICompareGreaterUI(op1, op2), op1, op2));
@@ -320,6 +487,7 @@ namespace ARMeilleure.Instructions
         public static void Vmin_I(ArmEmitterContext context)
         {
             OpCode32SimdReg op = (OpCode32SimdReg)context.CurrOp;
+
             if (op.U)
             {
                 EmitVectorBinaryOpZx32(context, (op1, op2) => context.ConditionalSelect(context.ICompareLessUI(op1, op2), op1, op2));
@@ -720,6 +888,57 @@ namespace ARMeilleure.Instructions
         public static void Vsub_I(ArmEmitterContext context)
         {
             EmitVectorBinaryOpZx32(context, (op1, op2) => context.Subtract(op1, op2));
+        }
+
+        private static void EmitSse41MaxMinNumOpF32(ArmEmitterContext context, bool isMaxNum, bool scalar)
+        {
+            IOpCode32Simd op = (IOpCode32Simd)context.CurrOp;
+
+            Func<Operand, Operand, Operand> genericEmit = (n, m) =>
+            {
+                Operand nNum = context.Copy(n);
+                Operand mNum = context.Copy(m);
+
+                Operand nQNaNMask = InstEmit.EmitSse2VectorIsQNaNOpF(context, nNum);
+                Operand mQNaNMask = InstEmit.EmitSse2VectorIsQNaNOpF(context, mNum);
+
+                int sizeF = op.Size & 1;
+
+                if (sizeF == 0)
+                {
+                    Operand negInfMask = X86GetAllElements(context, isMaxNum ? float.NegativeInfinity : float.PositiveInfinity);
+
+                    Operand nMask = context.AddIntrinsic(Intrinsic.X86Andnps, mQNaNMask, nQNaNMask);
+                    Operand mMask = context.AddIntrinsic(Intrinsic.X86Andnps, nQNaNMask, mQNaNMask);
+
+                    nNum = context.AddIntrinsic(Intrinsic.X86Blendvps, nNum, negInfMask, nMask);
+                    mNum = context.AddIntrinsic(Intrinsic.X86Blendvps, mNum, negInfMask, mMask);
+
+                    return context.AddIntrinsic(isMaxNum ? Intrinsic.X86Maxps : Intrinsic.X86Minps, nNum, mNum);
+                }
+                else /* if (sizeF == 1) */
+                {
+                    Operand negInfMask = X86GetAllElements(context, isMaxNum ? double.NegativeInfinity : double.PositiveInfinity);
+
+                    Operand nMask = context.AddIntrinsic(Intrinsic.X86Andnpd, mQNaNMask, nQNaNMask);
+                    Operand mMask = context.AddIntrinsic(Intrinsic.X86Andnpd, nQNaNMask, mQNaNMask);
+
+                    nNum = context.AddIntrinsic(Intrinsic.X86Blendvpd, nNum, negInfMask, nMask);
+                    mNum = context.AddIntrinsic(Intrinsic.X86Blendvpd, mNum, negInfMask, mMask);
+
+                    return context.AddIntrinsic(isMaxNum ? Intrinsic.X86Maxpd : Intrinsic.X86Minpd, nNum, mNum);
+                }
+            };
+
+            if (scalar)
+            {
+                EmitScalarBinaryOpSimd32(context, genericEmit);
+            } 
+            else
+            {
+                EmitVectorBinaryOpSimd32(context, genericEmit);
+            }
+            
         }
     }
 }
