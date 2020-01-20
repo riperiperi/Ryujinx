@@ -445,6 +445,252 @@ namespace ARMeilleure.Instructions
             context.Copy(GetVecA32(op.Qd), res);
         }
 
+        // Intrinsic Emits
+
+        private static Operand EmitSwapDoubleWordToSide(ArmEmitterContext context, Operand input, int originalV, int targetV)
+        {
+            int originalSide = originalV & 1;
+            int targetSide = targetV & 1;
+
+            if (originalSide == targetSide)
+            {
+                return input;
+            }
+
+            if (targetSide == 1)
+            {
+                return context.AddIntrinsic(Intrinsic.X86Movlhps, input, input); // low to high
+            } 
+            else
+            {
+                return context.AddIntrinsic(Intrinsic.X86Movhlps, input, input); // high to low
+            }
+        }
+
+        private static Operand EmitDoubleWordInsert(ArmEmitterContext context, Operand target, Operand value, int targetV)
+        {
+            int targetSide = targetV & 1;
+            int shuffleMask = 2 | 0;
+
+            if (targetSide == 1)
+            {
+                return context.AddIntrinsic(Intrinsic.X86Shufpd, target, value, Const(shuffleMask));
+            } 
+            else
+            {
+                return context.AddIntrinsic(Intrinsic.X86Shufpd, value, target, Const(shuffleMask));
+            }
+        }
+
+        private static Operand EmitSwapScalar(ArmEmitterContext context, Operand target, int reg, bool doubleWidth)
+        {
+            // index into 0, 0 into index. This swap happens at the start and end of an A32 scalar op if required.
+            int index = reg & (doubleWidth ? 1 : 3);
+            if (index == 0) return target;
+
+            if (doubleWidth)
+            {
+                int shuffleMask = 1; // swap top and bottom (b0 = 1, b1 = 0)
+                return context.AddIntrinsic(Intrinsic.X86Shufpd, target, target, Const(shuffleMask));
+            } 
+            else
+            {
+                int shuffleMask = (3 << 6) | (2 << 4) | (1 << 2) | index; // swap index and 0 (others remain)
+                shuffleMask &= ~(3 << (index * 2));
+
+                return context.AddIntrinsic(Intrinsic.X86Shufps, target, target, Const(shuffleMask));
+            }
+        }
+
+        private static Operand EmitInsertScalar(ArmEmitterContext context, Operand target, Operand value, int reg, bool doubleWidth)
+        {
+            // insert from index 0 in value to index in target
+            int index = reg & (doubleWidth ? 1 : 3);
+
+            if (doubleWidth)
+            {
+                if (index == 1)
+                {
+                    return context.AddIntrinsic(Intrinsic.X86Movlhps, target, value); // low to high
+                }
+                else
+                {
+                    return context.AddIntrinsic(Intrinsic.X86Shufpd, value, target, Const(2)); // low to low, keep high from original
+                }
+            }
+            else
+            {
+                long low = (index < 2) ? (1L << (index * 32 + 31)) : 0;
+                long high = (index > 1) ? (1L << (index * 32 - 33)) : 0;
+                Operand mask = X86GetElements(context, high, low);
+                value = EmitSwapScalar(context, value, reg, doubleWidth);
+                return context.AddIntrinsic(Intrinsic.X86Blendvps, target, value, mask);
+            }
+        }
+
+        public static void EmitVectorUnaryOpF32(ArmEmitterContext context, Intrinsic inst32, Intrinsic inst64)
+        {
+            OpCode32Simd op = (OpCode32Simd)context.CurrOp;
+
+            Operand m = GetVecA32(op.Qm);
+            Operand d = GetVecA32(op.Qd);
+
+            Intrinsic inst = (op.Size & 1) != 0 ? inst64 : inst32;
+
+            if (!op.Q) //register swap: move relevant doubleword to destination side
+            {
+                m = EmitSwapDoubleWordToSide(context, m, op.Vm, op.Vd);
+            }
+
+            Operand res = context.AddIntrinsic(inst, m);
+
+            if (!op.Q) //register insert
+            {
+                res = EmitDoubleWordInsert(context, d, res, op.Vd);
+            }
+
+            context.Copy(d, res);
+        }
+
+        public static void EmitVectorBinaryOpF32(ArmEmitterContext context, Intrinsic inst32, Intrinsic inst64)
+        {
+            OpCode32SimdReg op = (OpCode32SimdReg)context.CurrOp;
+
+            Operand n = GetVecA32(op.Qn);
+            Operand m = GetVecA32(op.Qm);
+            Operand d = GetVecA32(op.Qd);
+
+            Intrinsic inst = (op.Size & 1) != 0 ? inst64 : inst32;
+
+            if (!op.Q) //register swap: move relevant doubleword to destination side
+            {
+                n = EmitSwapDoubleWordToSide(context, n, op.Vn, op.Vd);
+                m = EmitSwapDoubleWordToSide(context, m, op.Vm, op.Vd);
+            }
+
+            Operand res = context.AddIntrinsic(inst, n, m);
+
+            if (!op.Q) //register insert
+            {
+                res = EmitDoubleWordInsert(context, d, res, op.Vd);
+            }
+
+            context.Copy(d, res);
+        }
+
+        public static void EmitVectorTernaryOpF32(ArmEmitterContext context, Intrinsic inst32pt1, Intrinsic inst64pt1, Intrinsic inst32pt2, Intrinsic inst64pt2)
+        {
+            OpCode32SimdReg op = (OpCode32SimdReg)context.CurrOp;
+
+            Operand n = GetVecA32(op.Qn);
+            Operand m = GetVecA32(op.Qm);
+            Operand d = GetVecA32(op.Qd);
+            Operand initialD = d;
+
+            Intrinsic inst1 = (op.Size & 1) != 0 ? inst64pt1 : inst32pt1;
+            Intrinsic inst2 = (op.Size & 1) != 0 ? inst64pt2 : inst32pt2;
+
+            if (!op.Q) //register swap: move relevant doubleword to destination side
+            {
+                n = EmitSwapDoubleWordToSide(context, n, op.Vn, op.Vd);
+                m = EmitSwapDoubleWordToSide(context, m, op.Vm, op.Vd);
+            }
+
+            Operand res = context.AddIntrinsic(inst1, n, m);
+            res = context.AddIntrinsic(inst2, d, res);
+
+            if (!op.Q) //register insert
+            {
+                res = EmitDoubleWordInsert(context, initialD, res, op.Vd);
+            }
+
+            context.Copy(initialD, res);
+        }
+
+        public static void EmitScalarUnaryOpF32(ArmEmitterContext context, Intrinsic inst32, Intrinsic inst64)
+        {
+            OpCode32SimdS op = (OpCode32SimdS)context.CurrOp;
+
+            bool doubleSize = (op.Size & 1) != 0;
+            int shift = doubleSize ? 1 : 2;
+            Operand m = GetVecA32(op.Vm >> shift);
+            Operand d = GetVecA32(op.Vd >> shift);
+
+            m = EmitSwapScalar(context, m, op.Vm, doubleSize);
+
+            Intrinsic inst = doubleSize ? inst64 : inst32;
+
+            Operand res = (inst == 0) ? m : context.AddIntrinsic(inst, m);
+            if (false) // op.Vd == op.Vm) //small optimisation: can just swap it back for the result
+            {
+                res = EmitSwapScalar(context, res, op.Vd, doubleSize);
+            } 
+            else
+            {
+                // insert scalar into vector
+                res = EmitInsertScalar(context, d, res, op.Vd, doubleSize);
+            }
+
+            context.Copy(d, res);
+        }
+
+        public static void EmitScalarBinaryOpF32(ArmEmitterContext context, Intrinsic inst32, Intrinsic inst64)
+        {
+            OpCode32SimdRegS op = (OpCode32SimdRegS)context.CurrOp;
+
+            bool doubleSize = (op.Size & 1) != 0;
+            int shift = doubleSize ? 1 : 2;
+            Operand n = GetVecA32(op.Vn >> shift);
+            Operand m = GetVecA32(op.Vm >> shift);
+            Operand d = GetVecA32(op.Vd >> shift);
+
+            n = EmitSwapScalar(context, n, op.Vn, doubleSize);
+            m = EmitSwapScalar(context, m, op.Vm, doubleSize);
+
+            Intrinsic inst = doubleSize ? inst64 : inst32;
+
+            Operand res = context.AddIntrinsic(inst, n, m);
+
+            if (false) // //small optimisation: can just swap it back for the result
+            {
+                res = EmitSwapScalar(context, res, op.Vd, doubleSize);
+            }
+            else
+            {
+                // insert scalar into vector
+                res = EmitInsertScalar(context, d, res, op.Vd, doubleSize);
+            }
+
+            context.Copy(d, res);
+        }
+
+        public static void EmitScalarTernaryOpF32(ArmEmitterContext context, Intrinsic inst32pt1, Intrinsic inst64pt1, Intrinsic inst32pt2, Intrinsic inst64pt2)
+        {
+            OpCode32SimdRegS op = (OpCode32SimdRegS)context.CurrOp;
+
+            bool doubleSize = (op.Size & 1) != 0;
+            int shift = doubleSize ? 1 : 2;
+            Operand n = GetVecA32(op.Vn >> shift);
+            Operand m = GetVecA32(op.Vm >> shift);
+            Operand d = GetVecA32(op.Vd >> shift);
+            Operand initialD = d;
+
+            n = EmitSwapScalar(context, n, op.Vn, doubleSize);
+            m = EmitSwapScalar(context, m, op.Vm, doubleSize);
+            d = EmitSwapScalar(context, d, op.Vd, doubleSize);
+
+            Intrinsic inst1 = doubleSize ? inst64pt1 : inst32pt1;
+            Intrinsic inst2 = doubleSize ? inst64pt2 : inst32pt2;
+
+            Operand res = context.AddIntrinsic(inst1, n, m);
+            res = context.AddIntrinsic(inst2, d, res);
+
+            // insert scalar into vector
+            res = EmitInsertScalar(context, initialD, res, op.Vd, doubleSize);
+
+            context.Copy(initialD, res);
+        }
+
         // Generic Functions
 
         public static Operand EmitSoftFloatCallDefaultFpscr(
