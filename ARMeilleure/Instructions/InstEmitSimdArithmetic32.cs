@@ -183,33 +183,79 @@ namespace ARMeilleure.Instructions
             }
         }
 
+        private static (long, long) MaskHelperByteSequence(int start, int length, int startByte)
+        {
+            int end = start + length;
+            int b = startByte;
+            long result = 0;
+            long result2 = 0;
+            for (int i=0; i<8; i++)
+            {
+                result |= (long)((i >= end || i < start) ? 0x80 : b++) << (i * 8);
+            }
+            for (int i = 8; i < 16; i++)
+            {
+                result2 |= (long)((i >= end || i < start) ? 0x80 : b++) << ((i-8) * 8);
+            }
+            return (result2, result);
+        }
+
         public static void Vext(ArmEmitterContext context)
         {
             OpCode32SimdExt op = (OpCode32SimdExt)context.CurrOp;
-
             int elems = op.GetBytesCount();
             int byteOff = op.Immediate;
 
-            Operand res = GetVecA32(op.Qd);
-
-            for (int index = 0; index < elems; index++)
+            if (Optimizations.UseSsse3)
             {
-                Operand extract;
-
-                if (byteOff >= elems)
+                EmitVectorBinaryOpSimd32(context, (n, m) =>
                 {
-                    extract = EmitVectorExtractZx32(context, op.Qm, op.Im + (byteOff - elems), op.Size);
-                }
-                else
-                {
-                    extract = EmitVectorExtractZx32(context, op.Qn, op.In + byteOff, op.Size);
-                }
-                byteOff++;
+                    //writing low to high of d: start <imm> into n, overlap into m
+                    //so rotate n down by <imm>, m up by (elems)-imm
+                    //then OR
 
-                res = EmitVectorInsert(context, res, extract, op.Id + index, op.Size);
+                    (long nMaskHigh, long nMaskLow) = MaskHelperByteSequence(0, elems - byteOff, byteOff);
+                    (long mMaskHigh, long mMaskLow) = MaskHelperByteSequence(elems - byteOff, byteOff, 0);
+                    Operand nMask, mMask;
+                    if (op.Q)
+                    {
+                        nMask = X86GetElements(context, nMaskHigh, nMaskLow);
+                        mMask = X86GetElements(context, mMaskHigh, mMaskLow);
+                    }
+                    else
+                    {
+                        nMask = X86GetAllElements(context, nMaskLow);
+                        mMask = X86GetAllElements(context, mMaskLow);
+                    }
+                    Operand nPart = context.AddIntrinsic(Intrinsic.X86Pshufb, n, nMask);
+                    Operand mPart = context.AddIntrinsic(Intrinsic.X86Pshufb, m, mMask);
+
+                    return context.AddIntrinsic(Intrinsic.X86Por, nPart, mPart);
+                });
+            } 
+            else
+            {
+                Operand res = GetVecA32(op.Qd);
+
+                for (int index = 0; index < elems; index++)
+                {
+                    Operand extract;
+
+                    if (byteOff >= elems)
+                    {
+                        extract = EmitVectorExtractZx32(context, op.Qm, op.Im + (byteOff - elems), op.Size);
+                    }
+                    else
+                    {
+                        extract = EmitVectorExtractZx32(context, op.Qn, op.In + byteOff, op.Size);
+                    }
+                    byteOff++;
+
+                    res = EmitVectorInsert(context, res, extract, op.Id + index, op.Size);
+                }
+
+                context.Copy(GetVecA32(op.Qd), res);
             }
-
-            context.Copy(GetVecA32(op.Qd), res);
         }
 
         public static void Vmov_S(ArmEmitterContext context)
