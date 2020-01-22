@@ -31,7 +31,7 @@ namespace ARMeilleure.Instructions
             15L << 56 | 14L << 48 | 13L << 40 | 12L << 32 | 07L << 24 | 06L << 16 | 05L << 8 | 04L << 0  // S
         };
 
-        private static readonly long _zeroMask = 128L << 56 | 128L << 48 | 128L << 40 | 128L << 32 | 128L << 24 | 128L << 16 | 128L << 8 | 128L << 0;
+        public static readonly long ZeroMask = 128L << 56 | 128L << 48 | 128L << 40 | 128L << 32 | 128L << 24 | 128L << 16 | 128L << 8 | 128L << 0;
 #endregion
 
 #region "X86 SSE Intrinsics"
@@ -1026,8 +1026,8 @@ namespace ARMeilleure.Instructions
 
             if (op.RegisterSize == RegisterSize.Simd64)
             {
-                Operand zeroEvenMask = X86GetElements(context, _zeroMask, EvenMasks[op.Size]);
-                Operand zeroOddMask  = X86GetElements(context, _zeroMask, OddMasks [op.Size]);
+                Operand zeroEvenMask = X86GetElements(context, ZeroMask, EvenMasks[op.Size]);
+                Operand zeroOddMask  = X86GetElements(context, ZeroMask, OddMasks [op.Size]);
 
                 Operand mN = context.AddIntrinsic(Intrinsic.X86Punpcklqdq, n, m); // m:n
 
