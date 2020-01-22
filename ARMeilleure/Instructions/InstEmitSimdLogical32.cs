@@ -1,4 +1,5 @@
 ﻿using ARMeilleure.Decoders;
+using ARMeilleure.IntermediateRepresentation;
 using ARMeilleure.Translation;
 
 using static ARMeilleure.Instructions.InstEmitHelper;
