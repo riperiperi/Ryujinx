@@ -210,23 +210,21 @@ namespace ARMeilleure.Instructions
             {
                 EmitVectorBinaryOpSimd32(context, (n, m) =>
                 {
-                    //writing low to high of d: start <imm> into n, overlap into m
-                    //so rotate n down by <imm>, m up by (elems)-imm
-                    //then OR
+                    // Writing low to high of d: start <imm> into n, overlap into m.
+                    // Then rotate n down by <imm>, m up by (elems)-imm.
+                    // Then OR them together for the result.
 
                     (long nMaskHigh, long nMaskLow) = MaskHelperByteSequence(0, elems - byteOff, byteOff);
                     (long mMaskHigh, long mMaskLow) = MaskHelperByteSequence(elems - byteOff, byteOff, 0);
                     Operand nMask, mMask;
-                    if (op.Q)
+                    if (!op.Q)
                     {
-                        nMask = X86GetElements(context, nMaskHigh, nMaskLow);
-                        mMask = X86GetElements(context, mMaskHigh, mMaskLow);
+                        // Do the same operation to the bytes in the top doubleword too, as our target could be in either.
+                        nMaskHigh = nMaskLow + 0x0808080808080808L;
+                        mMaskHigh = mMaskLow + 0x0808080808080808L;
                     }
-                    else
-                    {
-                        nMask = X86GetAllElements(context, nMaskLow);
-                        mMask = X86GetAllElements(context, mMaskLow);
-                    }
+                    nMask = X86GetElements(context, nMaskHigh, nMaskLow);
+                    mMask = X86GetElements(context, mMaskHigh, mMaskLow);
                     Operand nPart = context.AddIntrinsic(Intrinsic.X86Pshufb, n, nMask);
                     Operand mPart = context.AddIntrinsic(Intrinsic.X86Pshufb, m, mMask);
 
