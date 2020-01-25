@@ -41,6 +41,7 @@ namespace ARMeilleure.IntermediateRepresentation
         X86Divss,
         X86Haddpd,
         X86Haddps,
+        X86Insertps,
         X86Maxpd,
         X86Maxps,
         X86Maxsd,
