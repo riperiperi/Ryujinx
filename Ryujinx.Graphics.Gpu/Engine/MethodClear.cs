@@ -80,6 +80,8 @@ namespace Ryujinx.Graphics.Gpu.Engine
             {
                 _context.Renderer.Pipeline.EndHostConditionalRendering();
             }
+
+            TextureManager.SignalTargetsModified();
         }
     }
 }

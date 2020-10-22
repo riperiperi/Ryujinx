@@ -69,11 +69,11 @@ namespace Ryujinx.Memory.Tracking
             handle.Dispose();
 
             RegionHandle splitLow = _tracking.BeginTracking(address, size);
-            splitLow.Parent = this;
+            splitLow.OnDirty += SignalWrite;
             _handles[handleIndex] = splitLow;
 
             RegionHandle splitHigh = _tracking.BeginTracking(address + size, handle.Size - size);
-            splitHigh.Parent = this;
+            splitHigh.OnDirty += SignalWrite;
             _handles[splitIndex] = splitHigh;
         }
 
@@ -104,7 +104,7 @@ namespace Ryujinx.Memory.Tracking
                 {
                     // Fill up to the found handle.
                     handle = _tracking.BeginTracking(startAddress, HandlesToBytes(i - startHandle));
-                    handle.Parent = this;
+                    handle.OnDirty += SignalWrite;
                     _handles[startHandle] = handle;
                     return;
                 }
@@ -112,7 +112,7 @@ namespace Ryujinx.Memory.Tracking
 
             // Can fill the whole range.
             _handles[startHandle] = _tracking.BeginTracking(startAddress, HandlesToBytes(1 + lastHandle - startHandle));
-            _handles[startHandle].Parent = this;
+            _handles[startHandle].OnDirty += SignalWrite;
         }
 
         public void QueryModified(ulong address, ulong size, Action<ulong, ulong> modifiedAction)

@@ -26,7 +26,7 @@ namespace Ryujinx.Memory.Tracking
             for (int i = 0; i < _handles.Length; i++)
             {
                 RegionHandle handle = tracking.BeginTracking(address + (ulong)i * granularity, granularity);
-                handle.Parent = this;
+                handle.OnDirty += SignalWrite;
                 _handles[i] = handle;
             }
 

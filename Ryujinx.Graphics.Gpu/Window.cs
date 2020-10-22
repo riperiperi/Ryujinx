@@ -148,7 +148,7 @@ namespace Ryujinx.Graphics.Gpu
 
                 Texture texture = _context.Methods.TextureManager.FindOrCreateTexture(pt.Info, TextureSearchFlags.WithUpscale);
 
-                texture.SynchronizeMemory();
+                texture.TrySynchronizeMemory();
 
                 _context.Renderer.Window.Present(texture.HostTexture, pt.Crop);
 

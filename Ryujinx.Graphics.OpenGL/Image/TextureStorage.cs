@@ -2,6 +2,7 @@ using OpenTK.Graphics.OpenGL;
 using Ryujinx.Common.Logging;
 using Ryujinx.Graphics.GAL;
 using System;
+using System.Collections.Generic;
 
 namespace Ryujinx.Graphics.OpenGL.Image
 {
@@ -151,11 +152,17 @@ namespace Ryujinx.Graphics.OpenGL.Image
             return DefaultView;
         }
 
+        private List<TextureView> _views = new List<TextureView>();
+
         public ITexture CreateView(TextureCreateInfo info, int firstLayer, int firstLevel)
         {
             IncrementViewsCount();
 
-            return new TextureView(_renderer, this, info, firstLayer, firstLevel);
+            var view = new TextureView(_renderer, this, info, firstLayer, firstLevel);
+
+            _views.Add(view);
+
+            return view;
         }
 
         private void IncrementViewsCount()
@@ -163,8 +170,10 @@ namespace Ryujinx.Graphics.OpenGL.Image
             _viewsCount++;
         }
 
-        public void DecrementViewsCount()
+        public void DecrementViewsCount(TextureView view)
         {
+            _views.Remove(view);
+
             // If we don't have any views, then the storage is now useless, delete it.
             if (--_viewsCount == 0)
             {

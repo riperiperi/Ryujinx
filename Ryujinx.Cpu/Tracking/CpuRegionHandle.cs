@@ -1,4 +1,5 @@
 ﻿using Ryujinx.Memory.Tracking;
+using System;
 
 namespace Ryujinx.Cpu.Tracking
 {
@@ -7,6 +8,9 @@ namespace Ryujinx.Cpu.Tracking
         private readonly RegionHandle _impl;
 
         public bool Dirty => _impl.Dirty;
+
+        public event Action OnDirty;
+
         public ulong Address => _impl.Address;
         public ulong Size => _impl.Size;
         public ulong EndAddress => _impl.EndAddress;
@@ -14,6 +18,13 @@ namespace Ryujinx.Cpu.Tracking
         internal CpuRegionHandle(RegionHandle impl)
         {
             _impl = impl;
+
+            _impl.OnDirty += DirtyHandler;
+        }
+
+        private void DirtyHandler()
+        {
+            OnDirty?.Invoke();
         }
 
         public void Dispose() => _impl.Dispose();

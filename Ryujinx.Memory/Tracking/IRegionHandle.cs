@@ -6,6 +6,8 @@ namespace Ryujinx.Memory.Tracking
     {
         bool Dirty { get; }
 
+        event Action OnDirty;
+
         ulong Address { get; }
         ulong Size { get; }
         ulong EndAddress { get; }

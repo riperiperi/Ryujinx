@@ -146,6 +146,8 @@ namespace Ryujinx.Graphics.Gpu.Engine
             {
                 _context.Renderer.Pipeline.EndHostConditionalRendering();
             }
+
+            TextureManager.SignalTargetsModified();
         }
 
         /// <summary>
@@ -337,6 +339,8 @@ namespace Ryujinx.Graphics.Gpu.Engine
                         _instancedDrawStateFirst,
                         _instancedFirstInstance);
                 }
+
+                TextureManager.SignalTargetsModified();
             }
         }
     }

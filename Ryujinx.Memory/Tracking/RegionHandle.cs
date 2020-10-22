@@ -1,4 +1,5 @@
 ﻿using Ryujinx.Memory.Range;
+using System;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -12,11 +13,12 @@ namespace Ryujinx.Memory.Tracking
     {
         public bool Dirty { get; private set; }
 
+        public event Action OnDirty;
+
         public ulong Address { get; }
         public ulong Size { get; }
         public ulong EndAddress { get; }
 
-        internal IMultiRegionHandle Parent { get; set; }
         internal int SequenceNumber { get; set; }
 
         private RegionSignal _preAction; // Action to perform before a read or write. This will block the memory access.
@@ -60,7 +62,7 @@ namespace Ryujinx.Memory.Tracking
             if (write)
             {
                 Dirty = true;
-                Parent?.SignalWrite();
+                OnDirty?.Invoke();
             }
         }
 

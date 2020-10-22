@@ -160,18 +160,23 @@ namespace Ryujinx.Graphics.OpenGL.Image
 
         public void CopyTo(ITexture destination, int firstLayer, int firstLevel)
         {
+            CopyTo(destination, 0, firstLayer, 0, firstLevel);
+        }
+
+        public void CopyTo(ITexture destination, int srcLayer, int dstLayer, int srcLevel, int dstLevel)
+        {
             TextureView destinationView = (TextureView)destination;
 
-            _renderer.TextureCopy.CopyUnscaled(this, destinationView, 0, firstLayer, 0, firstLevel);
+            _renderer.TextureCopy.CopyUnscaled(this, destinationView, srcLayer, dstLayer, srcLevel, dstLevel);
 
             if (destinationView._emulatedViewParent != null)
             {
                 _renderer.TextureCopy.CopyUnscaled(
                     this,
                     destinationView._emulatedViewParent,
-                    0,
+                    srcLayer,
                     destinationView.FirstLayer,
-                    0,
+                    srcLevel,
                     destinationView.FirstLevel);
             }
         }
@@ -681,7 +686,7 @@ namespace Ryujinx.Graphics.OpenGL.Image
 
             if (hadHandle)
             {
-                _parent.DecrementViewsCount();
+                _parent.DecrementViewsCount(this);
             }
         }
 

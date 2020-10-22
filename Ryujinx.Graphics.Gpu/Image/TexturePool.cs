@@ -84,7 +84,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                 }
 
                 // Memory is automatically synchronized on texture creation.
-                texture.SynchronizeMemory();
+                texture.TrySynchronizeMemory();
             }
 
             return texture;

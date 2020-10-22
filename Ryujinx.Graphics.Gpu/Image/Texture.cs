@@ -73,11 +73,25 @@ namespace Ryujinx.Graphics.Gpu.Image
         private Texture _viewStorage;
 
         private List<Texture> _views;
+        /// <summary>
+        /// Storage and views that overlap this texture in a view compatible way. When used, we must check all of these for modification in size descending order.
+        /// </summary>
+        private List<Texture> _overlapViews;
+
+        public bool IsView => _viewStorage != this;
+        public Texture ViewParent => (_viewStorage != this) ? _viewStorage : null;
+
+        private bool _dirty = true;
 
         /// <summary>
         /// Host texture.
         /// </summary>
         public ITexture HostTexture { get; private set; }
+
+        /// <summary>
+        /// Handler for this texture's copy depenancies.
+        /// </summary>
+        public TextureDependancies Dependancies { get; private set; }
 
         /// <summary>
         /// Intrusive linked list node used on the auto deletion texture cache.
@@ -166,11 +180,13 @@ namespace Ryujinx.Graphics.Gpu.Image
             _context  = context;
             _sizeInfo = sizeInfo;
 
+            Dependancies = new TextureDependancies(this);
             SetInfo(info);
 
             _viewStorage = this;
 
             _views = new List<Texture>();
+            _overlapViews = new List<Texture>() { this };
         }
 
         /// <summary>
@@ -182,6 +198,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         public void InitializeData(bool isView, bool withData = false)
         {
             _memoryTracking = _context.PhysicalMemory.BeginTracking(Address, Size);
+            _memoryTracking.OnDirty += SignalDirty;
 
             if (withData)
             {
@@ -243,7 +260,67 @@ namespace Ryujinx.Graphics.Gpu.Image
 
             _viewStorage.AddView(texture);
 
+            _memoryTracking?.Dispose();
+            _memoryTracking = null;
+
             return texture;
+        }
+
+        private void CascadeOverlap(Texture texture)
+        {
+            // Cascade this overlap to any other textures that also overlap it.
+            foreach (Texture view in _overlapViews)
+            {
+                if (view == this) continue;
+                if (!(texture.Address >= view.EndAddress || texture.EndAddress <= view.Address))
+                {
+                    view.AddOverlap(texture);
+                    texture.AddOverlap(view);
+                }
+            }
+
+            AddOverlap(texture);
+        }
+
+        private void CascadeRemoveOverlap(Texture texture)
+        {
+            foreach (Texture view in _overlapViews)
+            {
+                if (view == this) continue;
+                view.RemoveOverlap(texture);
+            }
+
+            RemoveOverlap(texture);
+        }
+
+        private void AddOverlap(Texture texture)
+        {
+            // Modifications to this array must be locked, as it can be accessed from a CPU thread to signal dirty.
+            lock (_overlapViews)
+            {
+                for (int i = _overlapViews.Count - 1; i >= 0; i--)
+                {
+                    if (texture == _overlapViews[i])
+                    {
+                        return;
+                    }
+                    if (texture.Size > _overlapViews[i].Size)
+                    {
+                        _overlapViews.Insert(i + 1, texture);
+                        return;
+                    }
+                }
+                _overlapViews.Insert(0, texture);
+            }
+        }
+
+        private void RemoveOverlap(Texture texture)
+        {
+            Dependancies.Synchronize(texture);
+            lock (_overlapViews)
+            {
+                _overlapViews.Remove(texture);
+            }
         }
 
         /// <summary>
@@ -257,6 +334,9 @@ namespace Ryujinx.Graphics.Gpu.Image
             _views.Add(texture);
 
             texture._viewStorage = this;
+
+            CascadeOverlap(texture);
+            texture.CascadeOverlap(this);
         }
 
         /// <summary>
@@ -272,6 +352,18 @@ namespace Ryujinx.Graphics.Gpu.Image
             DeleteIfNotUsed();
         }
 
+        public int GetFirstLevel(Texture parent)
+        {
+            TextureDependancy dep = null;
+            if (parent != null)
+            {
+                dep = Dependancies.FindDependancy(this, parent);
+                if (dep != null) { }
+            }
+
+            return dep == null ? _firstLevel : 0;
+        }
+
         /// <summary>
         /// Changes the texture size.
         /// </summary>
@@ -282,17 +374,18 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="width">The new texture width</param>
         /// <param name="height">The new texture height</param>
         /// <param name="depthOrLayers">The new texture depth (for 3D textures) or layers (for layered textures)</param>
-        public void ChangeSize(int width, int height, int depthOrLayers)
+        public void ChangeSize(int width, int height, int depthOrLayers, Texture parent = null)
         {
+            int firstLevel = GetFirstLevel(parent);
             int blockWidth = Info.FormatInfo.BlockWidth;
             int blockHeight = Info.FormatInfo.BlockHeight;
 
-            width  <<= _firstLevel;
-            height <<= _firstLevel;
+            width  <<= firstLevel;
+            height <<= firstLevel;
 
             if (Info.Target == Target.Texture3D)
             {
-                depthOrLayers <<= _firstLevel;
+                depthOrLayers <<= firstLevel;
             }
             else
             {
@@ -303,14 +396,15 @@ namespace Ryujinx.Graphics.Gpu.Image
 
             foreach (Texture view in _viewStorage._views)
             {
-                int viewWidth  = Math.Max(1, width  >> view._firstLevel);
-                int viewHeight = Math.Max(1, height >> view._firstLevel);
+                int viewFirstLevel = view.GetFirstLevel(this);
+                int viewWidth  = Math.Max(1, width  >> viewFirstLevel);
+                int viewHeight = Math.Max(1, height >> viewFirstLevel);
 
                 int viewDepthOrLayers;
 
                 if (view.Info.Target == Target.Texture3D)
                 {
-                    viewDepthOrLayers = Math.Max(1, depthOrLayers >> view._firstLevel);
+                    viewDepthOrLayers = Math.Max(1, depthOrLayers >> viewFirstLevel);
                 }
                 else
                 {
@@ -530,9 +624,49 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// Be aware that this can cause texture data written by the GPU to be lost, this is just a
         /// one way copy (from CPU owned to GPU owned memory).
         /// </summary>
+        public void TrySynchronizeMemory()
+        {
+            if (_dirty)
+            {
+                // Synchronize overlapping textures in descending size order.
+                foreach (Texture view in _overlapViews)
+                {
+                    view.SynchronizeMemory();
+                }
+
+                _dirty = false;
+            }
+        }
+
         public void SynchronizeMemory()
         {
-            if (Info.Target == Target.TextureBuffer)
+            if ((true && _hasData) || Info.Target == Target.TextureBuffer) // _memoryTracking?.Dirty != true
+            {
+                if (Dependancies.Synchronize())
+                {
+                    _memoryTracking?.RegisterAction(ExternalFlush);
+                }
+                return;
+            }
+
+            _memoryTracking?.Reprotect();
+
+            ReadOnlySpan<byte> data = _context.PhysicalMemory.GetSpan(Address, (int)Size);
+
+            data = ConvertToHostCompatibleFormat(data);
+
+            HostTexture.SetData(data);
+
+            _hasData = true;
+
+            Dependancies.ClearModified(); // When this texture is synchronized, all copies to it will be overwritten.
+        }
+
+        /// <summary>
+        /// </summary>
+        public void SynchronizeMemoryNoDependants()
+        {
+            if ((true && _hasData) || Info.Target == Target.TextureBuffer) // _memoryTracking?.Dirty != true
             {
                 return;
             }
@@ -663,6 +797,57 @@ namespace Ryujinx.Graphics.Gpu.Image
             }
 
             return data;
+        }
+
+        /// <summary>
+        /// Create a two way copy dependancy between this texture and another. 
+        /// It is assumed that they are layout compatible, starting at the given level/layer.
+        /// </summary>
+        /// <param name="other"></param>
+        /// <param name="thisLayer"></param>
+        /// <param name="otherLayer"></param>
+        /// <param name="thisLevel"></param>
+        /// <param name="otherLevel"></param>
+        public void CreateCopyDependancy(Texture other, int thisLayer, int otherLayer, int thisLevel, int otherLevel)
+        {
+            Logger.Error?.PrintMsg(LogClass.Gpu, "== Creating copy dependancy ==");
+            Logger.Warning?.PrintMsg(LogClass.Gpu, $"This: {Info.Target.ToString()} {Info.Width}x{Info.Height} {Info.FormatInfo.Format.ToString()}");
+            Logger.Warning?.PrintMsg(LogClass.Gpu, $"      {thisLayer} {thisLevel}");
+
+            Logger.Warning?.PrintMsg(LogClass.Gpu, $"Othr: {other.Info.Target.ToString()} {other.Info.Width}x{other.Info.Height} {other.Info.FormatInfo.Format.ToString()}");
+            Logger.Warning?.PrintMsg(LogClass.Gpu, $"      {otherLayer} {otherLevel}");
+
+            other._hasData = true;
+            _hasData = true;
+
+            int levels = Math.Min(Info.Levels, other.Info.Levels);
+            int layers = Math.Min(Info.GetLayers(), other.Info.GetLayers());
+
+            for (int level = 0; level < levels; level++)
+            {
+                for (int layer = 0; layer < layers; layer++)
+                {
+                    TextureSubReference thisTexture = new TextureSubReference
+                    {
+                        Texture = this,
+                        FirstLayer = thisLayer + layer,
+                        FirstLevel = thisLevel + level
+                    };
+
+                    TextureSubReference otherTexture = new TextureSubReference
+                    {
+                        Texture = other,
+                        FirstLayer = otherLayer + layer,
+                        FirstLevel = otherLevel + level
+                    };
+
+                    Dependancies.AddOneWayDependancy(thisTexture, otherTexture);
+                    other.Dependancies.AddOneWayDependancy(otherTexture, thisTexture);
+                }
+            }
+
+            CascadeOverlap(other);
+            other.CascadeOverlap(this);
         }
 
         /// <summary>
@@ -880,13 +1065,9 @@ namespace Ryujinx.Graphics.Gpu.Image
                 return TextureViewCompatibility.Incompatible;
             }
 
-            if (!TextureCompatibility.ViewFormatCompatible(Info, info))
-            {
-                return TextureViewCompatibility.Incompatible;
-            }
-
             TextureViewCompatibility result = TextureViewCompatibility.Full;
 
+            result = TextureCompatibility.PropagateViewCompatibility(result, TextureCompatibility.ViewFormatCompatible(Info, info));
             result = TextureCompatibility.PropagateViewCompatibility(result, TextureCompatibility.ViewSizeMatches(Info, info, firstLevel));
             result = TextureCompatibility.PropagateViewCompatibility(result, TextureCompatibility.ViewTargetCompatible(Info, info));
 
@@ -1024,8 +1205,36 @@ namespace Ryujinx.Graphics.Gpu.Image
             {
                 _viewStorage.SignalModified();
             }
+            
+            // TODO: reprotect?
+
+            // All overlapping host views are also modified when this texture is 
+            _viewStorage.SignalModifiedInternal();
+            foreach (var view in _viewStorage._views)
+            {
+                if (view.OverlapsWith(Address, Size))
+                {
+                    view.SignalModifiedInternal();
+                }
+            }
 
             _memoryTracking?.RegisterAction(ExternalFlush);
+        }
+
+        internal void SignalModifiedInternal()
+        {
+            Dependancies.Modified();
+        }
+
+        public void SignalDirty()
+        {
+            lock (_overlapViews)
+            {
+                foreach (Texture view in _overlapViews)
+                {
+                    view._dirty = true;
+                }
+            }
         }
 
         /// <summary>
@@ -1092,6 +1301,7 @@ namespace Ryujinx.Graphics.Gpu.Image
 
             if (newRefCount == 0)
             {
+                CascadeRemoveOverlap(this);
                 if (_viewStorage != this)
                 {
                     _viewStorage.RemoveView(this);
@@ -1159,6 +1369,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         {
             DisposeTextures();
 
+            Dependancies.Dispose();
             Disposed?.Invoke(this);
             _memoryTracking?.Dispose();
         }

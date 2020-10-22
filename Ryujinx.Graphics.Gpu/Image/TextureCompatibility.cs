@@ -382,10 +382,22 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// </summary>
         /// <param name="lhs">Texture information of the texture view</param>
         /// <param name="rhs">Texture information of the texture view</param>
-        /// <returns>True if the formats are compatible, false otherwise</returns>
-        public static bool ViewFormatCompatible(TextureInfo lhs, TextureInfo rhs)
+        /// <returns>How view compatible the formats are</returns>
+        public static TextureViewCompatibility ViewFormatCompatible(TextureInfo lhs, TextureInfo rhs)
         {
-            return FormatCompatible(lhs.FormatInfo, rhs.FormatInfo);
+            if (FormatCompatible(lhs.FormatInfo, rhs.FormatInfo))
+            {
+                if (lhs.FormatInfo.IsCompressed != rhs.FormatInfo.IsCompressed)
+                {
+                    return TextureViewCompatibility.CopyOnly;
+                }
+                else
+                {
+                    return TextureViewCompatibility.Full;
+                }
+            }
+
+            return TextureViewCompatibility.Incompatible;
         }
 
         /// <summary>
@@ -395,7 +407,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="lhs">Texture information of the texture view</param
         /// <param name="rhs">Texture information of the texture view</param>
         /// <param name="isCopy">True to check for copy rather than view compatibility</param>
-        /// <returns>True if the targets are compatible, false otherwise</returns>
+        /// <returns>How view compatible the formats are</returns>
         public static TextureViewCompatibility ViewTargetCompatible(TextureInfo lhs, TextureInfo rhs)
         {
             bool result = false;

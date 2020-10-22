@@ -375,12 +375,12 @@ namespace Ryujinx.Graphics.Gpu.Engine
 
                 Texture color = TextureManager.FindOrCreateTexture(colorState, samplesInX, samplesInY, sizeHint);
 
-                changedScale |= TextureManager.SetRenderTargetColor(index, color);
-
                 if (color != null)
                 {
                     color.SignalModified();
                 }
+
+                changedScale |= TextureManager.SetRenderTargetColor(index, color);
             }
 
             bool dsEnable = state.Get<Boolean32>(MethodOffset.RtDepthStencilEnable);
