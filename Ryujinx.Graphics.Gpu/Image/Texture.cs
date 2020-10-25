@@ -197,8 +197,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="withData">True if the texture is to be initialized with data</param>
         public void InitializeData(bool isView, bool withData = false)
         {
-            _memoryTracking = _context.PhysicalMemory.BeginTracking(Address, Size);
-            _memoryTracking.OnDirty += SignalDirty;
+            EstablishMemoryTracking();
 
             if (withData)
             {
@@ -259,9 +258,6 @@ namespace Ryujinx.Graphics.Gpu.Image
             texture.HostTexture = HostTexture.CreateView(createInfo, firstLayer, firstLevel);
 
             _viewStorage.AddView(texture);
-
-            _memoryTracking?.Dispose();
-            _memoryTracking = null;
 
             return texture;
         }
@@ -345,7 +341,16 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="texture">The child texture</param>
         private void RemoveView(Texture texture)
         {
+            TrySynchronizeMemory();
+
             _views.Remove(texture);
+
+            if (_views.Count == 0)
+            {
+                EstablishMemoryTracking();
+
+                _memoryTracking.Reprotect();
+            }
 
             texture._viewStorage = texture;
 
@@ -421,8 +426,16 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// </summary>
         public void DisableMemoryTracking()
         {
+            SynchronizeMemory();
+
             _memoryTracking?.Dispose();
             _memoryTracking = null;
+        }
+
+        public void EstablishMemoryTracking()
+        {
+            _memoryTracking = _context.PhysicalMemory.BeginTracking(Address, Size);
+            _memoryTracking.OnDirty += SignalDirty;
         }
 
         /// <summary>
@@ -640,39 +653,18 @@ namespace Ryujinx.Graphics.Gpu.Image
 
         public void SynchronizeMemory()
         {
-            if ((true && _hasData) || Info.Target == Target.TextureBuffer) // _memoryTracking?.Dirty != true
-            {
-                if (Dependancies.Synchronize())
-                {
-                    _memoryTracking?.RegisterAction(ExternalFlush);
-                }
-                return;
-            }
-
-            _memoryTracking?.Reprotect();
-
-            ReadOnlySpan<byte> data = _context.PhysicalMemory.GetSpan(Address, (int)Size);
-
-            data = ConvertToHostCompatibleFormat(data);
-
-            HostTexture.SetData(data);
-
-            _hasData = true;
-
-            Dependancies.ClearModified(); // When this texture is synchronized, all copies to it will be overwritten.
-        }
-
-        /// <summary>
-        /// </summary>
-        public void SynchronizeMemoryNoDependants()
-        {
-            if ((true && _hasData) || Info.Target == Target.TextureBuffer) // _memoryTracking?.Dirty != true
+            if (Info.Target == Target.TextureBuffer)
             {
                 return;
             }
 
             if (_hasData)
             {
+                if (Dependancies.Synchronize())
+                {
+                    _memoryTracking?.RegisterAction(ExternalFlush);
+                }
+
                 if (_memoryTracking?.Dirty != true)
                 {
                     return;
@@ -713,6 +705,8 @@ namespace Ryujinx.Graphics.Gpu.Image
             HostTexture.SetData(data);
 
             _hasData = true;
+
+            Dependancies.ClearModified(); // When this texture is synchronized, all copies to it will be overwritten.
         }
 
         public void SetData(ReadOnlySpan<byte> data)
@@ -1172,7 +1166,7 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="firstLevel">The first level of the view</param>
         public void ReplaceView(Texture parent, TextureInfo info, ITexture hostTexture, int firstLayer, int firstLevel)
         {
-            parent._viewStorage.SynchronizeMemory();
+            parent._viewStorage.TrySynchronizeMemory();
             ReplaceStorage(hostTexture);
 
             _firstLayer = parent._firstLayer + firstLayer;
@@ -1287,6 +1281,17 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// </summary>
         public void IncrementReferenceCount()
         {
+            if (_referenceCount == 0)
+            {
+                lock (_overlapViews)
+                {
+                    if (!_overlapViews.Contains(this))
+                    {
+                        CascadeOverlap(this);
+                    }
+                }
+            }
+
             _referenceCount++;
         }
 
@@ -1301,7 +1306,6 @@ namespace Ryujinx.Graphics.Gpu.Image
 
             if (newRefCount == 0)
             {
-                CascadeRemoveOverlap(this);
                 if (_viewStorage != this)
                 {
                     _viewStorage.RemoveView(this);
@@ -1367,6 +1371,8 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// </summary>
         public void Dispose()
         {
+            CascadeRemoveOverlap(this);
+
             DisposeTextures();
 
             Dependancies.Dispose();

@@ -41,7 +41,7 @@ namespace Ryujinx.Graphics.Gpu.Image
             {
                 Texture oldestTexture = _textures.First.Value;
 
-                oldestTexture.SynchronizeMemory();
+                oldestTexture.TrySynchronizeMemory();
 
                 if (oldestTexture.IsModified && !oldestTexture.ConsumeModified())
                 {

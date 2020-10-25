@@ -727,7 +727,7 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                 ChangeSizeIfNeeded(info, texture, isSamplerTexture, sizeHint);
 
-                texture.SynchronizeMemory();
+                texture.TrySynchronizeMemory();
 
                 return texture;
             }
@@ -788,8 +788,10 @@ namespace Ryujinx.Graphics.Gpu.Image
                     // Edge case - the overlap is compatible as a view, and is used a view of an unreferenced texture identical to our desired info.
                     if (overlap.ViewParent.IsExactMatch(info, flags) == TextureMatchQuality.Perfect)
                     {
-                        // Resurrect the texture.
+                        // Resurrect the texture. It must also be the correct size, no matter what.
                         texture = overlap.ViewParent;
+
+                        texture.ChangeSize(info.Width, info.Height, info.DepthOrLayers);
                         break;
                     }
 
@@ -845,6 +847,11 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                         texture = new Texture(_context, info, sizeInfo, scaleMode);
                         texture.InitializeData(false, false);
+
+                        if (!TextureCompatibility.SizeMatches(overlap.Info, info, oInfo.FirstLevel)) // Force a size match for copy
+                        {
+                            texture.ChangeSize(info.Width, info.Height, info.DepthOrLayers);
+                        }
 
                         overlap.CreateCopyDependancy(texture, oInfo.FirstLayer, 0, oInfo.FirstLevel, 0);
 
@@ -1014,6 +1021,11 @@ namespace Ryujinx.Graphics.Gpu.Image
                     if (oInfo.Compatibility != TextureViewCompatibility.Full)
                     {
                         // Copy only compatibility, or target texture is already a view.
+
+                        if (!TextureCompatibility.SizeMatches(info, overlap.Info, oInfo.FirstLevel)) // Force a size match for copy
+                        {
+                            overlap.ChangeSize(overlapInfo.Width, overlapInfo.Height, overlap.Info.DepthOrLayers);
+                        }
 
                         texture.CreateCopyDependancy(overlap, oInfo.FirstLayer, 0, oInfo.FirstLevel, 0);
 
@@ -1209,7 +1221,7 @@ namespace Ryujinx.Graphics.Gpu.Image
 
             if (info.Target == Target.Texture3D)
             {
-                depthOrLayers = Math.Max(1, parent.Info.DepthOrLayers >> firstLevel);
+                depthOrLayers = Math.Max(1, parent.Info.DepthOrLayers >> firstLevel); // Suspicious: does not work for single slice of 3d texture
             }
             else
             {
