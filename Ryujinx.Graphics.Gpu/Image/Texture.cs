@@ -302,10 +302,12 @@ namespace Ryujinx.Graphics.Gpu.Image
                     }
                     if (texture.Size > _overlapViews[i].Size)
                     {
+                        _dirty = true;
                         _overlapViews.Insert(i + 1, texture);
                         return;
                     }
                 }
+                _dirty = true;
                 _overlapViews.Insert(0, texture);
             }
         }
@@ -804,7 +806,12 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="otherLevel"></param>
         public void CreateCopyDependancy(Texture other, int thisLayer, int otherLayer, int thisLevel, int otherLevel)
         {
-            Logger.Error?.PrintMsg(LogClass.Gpu, "== Creating copy dependancy ==");
+            if (_viewStorage == other._viewStorage)
+            {
+                return; // No copy dependancy is required if both textures have the same storage.
+            }
+
+            Logger.Error?.PrintMsg(LogClass.Gpu, "== Creating copy dependency ==");
             Logger.Warning?.PrintMsg(LogClass.Gpu, $"This: {Info.Target.ToString()} {Info.Width}x{Info.Height} {Info.FormatInfo.Format.ToString()}");
             Logger.Warning?.PrintMsg(LogClass.Gpu, $"      {thisLayer} {thisLevel}");
 
@@ -813,6 +820,9 @@ namespace Ryujinx.Graphics.Gpu.Image
 
             other._hasData = true;
             _hasData = true;
+
+            CascadeOverlap(other);
+            other.CascadeOverlap(this);
 
             int levels = Math.Min(Info.Levels, other.Info.Levels);
             int layers = Math.Min(Info.GetLayers(), other.Info.GetLayers());
@@ -839,9 +849,6 @@ namespace Ryujinx.Graphics.Gpu.Image
                     other.Dependancies.AddOneWayDependancy(otherTexture, thisTexture);
                 }
             }
-
-            CascadeOverlap(other);
-            other.CascadeOverlap(this);
         }
 
         /// <summary>
@@ -1166,12 +1173,27 @@ namespace Ryujinx.Graphics.Gpu.Image
         /// <param name="firstLevel">The first level of the view</param>
         public void ReplaceView(Texture parent, TextureInfo info, ITexture hostTexture, int firstLayer, int firstLevel)
         {
-            parent._viewStorage.TrySynchronizeMemory();
+            Texture storage = parent._viewStorage;
+            storage.TrySynchronizeMemory();
             ReplaceStorage(hostTexture);
 
             _firstLayer = parent._firstLayer + firstLayer;
             _firstLevel = parent._firstLevel + firstLevel;
-            parent._viewStorage.AddView(this);
+
+            _dirty = true;
+            parent._dirty = true;
+
+            storage.AddView(this);
+
+            // If this texture has any views, give them to the new view storage.
+            foreach (Texture view in _views)
+            {
+                int viewLayer = view._firstLayer + firstLayer;
+                int viewLevel = view._firstLevel + firstLevel;
+
+                ITexture viewTexture = storage.HostTexture.CreateView(TextureManager.GetCreateInfo(view.Info, _context.Capabilities, ScaleFactor), viewLayer, viewLevel);
+                view.ReplaceView(parent, view.Info, viewTexture, viewLayer, viewLevel);
+            }
 
             SetInfo(info);
         }

@@ -806,11 +806,6 @@ namespace Ryujinx.Graphics.Gpu.Image
                 _overlapInfo[index] = new OverlapInfo(overlapCompatibility, firstLayer, firstLevel);
             }
 
-            //TODO: future me!
-            // we could be a view of multiple parent textures at different layers!
-            // when a texture is created, also fulfil copyOnly dependancies to textures that are not yet related to the texture.
-            // case example: cubemap that exists in the cache but its viewparent does not exist anymore. (maybe i should just fix that lol)
-
             int overlapChoice = -1;
 
             if (texture == null)
@@ -869,7 +864,6 @@ namespace Ryujinx.Graphics.Gpu.Image
                     // Relation is determined by the texture's own _overlapViews
 
                     // Pick matching textures where the first layer/level does not match one that we're currently fulfilling.
-                    // 
 
                     OverlapInfo chosen = _overlapInfo[overlapChoice];
 
@@ -925,11 +919,28 @@ namespace Ryujinx.Graphics.Gpu.Image
                     {
                         if (compatibility == TextureViewCompatibility.Full)
                         {
-                            fullyCompatible++;
-                        }
+                            if (viewCompatible == fullyCompatible)
+                            {
+                                _overlapInfo[viewCompatible] = new OverlapInfo(compatibility, firstLayer, firstLevel);
+                                _textureOverlaps[viewCompatible++] = overlap;
+                            } 
+                            else
+                            {
+                                // Swap overlaps so that the fully compatible views have priority.
 
-                        _overlapInfo[viewCompatible] = new OverlapInfo(compatibility, firstLayer, firstLevel);
-                        _textureOverlaps[viewCompatible++] = overlap;
+                                _overlapInfo[viewCompatible] = _overlapInfo[fullyCompatible]; 
+                                _textureOverlaps[viewCompatible++] = _textureOverlaps[fullyCompatible];
+
+                                _overlapInfo[fullyCompatible] = new OverlapInfo(compatibility, firstLayer, firstLevel);
+                                _textureOverlaps[fullyCompatible] = overlap;
+                            }
+                            fullyCompatible++;
+                        } 
+                        else
+                        {
+                            _overlapInfo[viewCompatible] = new OverlapInfo(compatibility, firstLayer, firstLevel);
+                            _textureOverlaps[viewCompatible++] = overlap;
+                        }
                     }
                     else if (overlapInCache || !setData)
                     {
@@ -961,7 +972,8 @@ namespace Ryujinx.Graphics.Gpu.Image
                 if (fullyCompatible != viewCompatible)
                 {
                     // There could be multiple overlapping textures for the same layer/level.
-                    // Select only one of them, and prefer the 
+                    // Select only one of them, and prefer the fully compatible version if available.
+
 
                     for (int i = 0; i < viewCompatible; i++)
                     {
