@@ -791,7 +791,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                         // Resurrect the texture. It must also be the correct size, no matter what.
                         texture = overlap.ViewParent;
 
-                        texture.ChangeSize(info.Width, info.Height, info.DepthOrLayers);
+                        ChangeSizeIfNeeded(info, texture, isSamplerTexture, sizeHint);
                         break;
                     }
 
@@ -842,11 +842,6 @@ namespace Ryujinx.Graphics.Gpu.Image
 
                         texture = new Texture(_context, info, sizeInfo, scaleMode);
                         texture.InitializeData(false, false);
-
-                        if (!TextureCompatibility.SizeMatches(overlap.Info, info, oInfo.FirstLevel)) // Force a size match for copy
-                        {
-                            texture.ChangeSize(info.Width, info.Height, info.DepthOrLayers);
-                        }
 
                         overlap.CreateCopyDependancy(texture, oInfo.FirstLayer, 0, oInfo.FirstLevel, 0);
 
@@ -1034,10 +1029,7 @@ namespace Ryujinx.Graphics.Gpu.Image
                     {
                         // Copy only compatibility, or target texture is already a view.
 
-                        if (!TextureCompatibility.SizeMatches(info, overlap.Info, oInfo.FirstLevel)) // Force a size match for copy
-                        {
-                            overlap.ChangeSize(overlapInfo.Width, overlapInfo.Height, overlap.Info.DepthOrLayers);
-                        }
+                        ChangeSizeIfNeeded(overlapInfo, overlap, false, sizeHint); // Force a size match for copy
 
                         texture.CreateCopyDependancy(overlap, oInfo.FirstLayer, 0, oInfo.FirstLevel, 0);
 
