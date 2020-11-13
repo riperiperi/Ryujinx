@@ -824,6 +824,8 @@ namespace Ryujinx.Graphics.Gpu.Image
                             info = AdjustSizes(overlap, info, oInfo.FirstLevel);
                         }
 
+                        // TODO: WRONG - cannot create view with mismatching size. MUST FIX!
+
                         texture = overlap.CreateView(info, sizeInfo, oInfo.FirstLayer, oInfo.FirstLevel);
 
                         if (overlap.IsModified)
