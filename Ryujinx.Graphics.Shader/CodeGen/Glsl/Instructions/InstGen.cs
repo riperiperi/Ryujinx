@@ -132,9 +132,9 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl.Instructions
                         return Call(context, operation);
 
                     case Instruction.ImageLoad:
-                        return ImageLoadOrStore(context, operation);
-
                     case Instruction.ImageStore:
+                    case Instruction.ImageAtomic:
+                    case Instruction.ImageReduce:
                         return ImageLoadOrStore(context, operation);
 
                     case Instruction.LoadAttribute:

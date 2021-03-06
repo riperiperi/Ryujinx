@@ -24,7 +24,28 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl.Instructions
             bool isArray   = (texOp.Type & SamplerType.Array)   != 0;
             bool isIndexed = (texOp.Type & SamplerType.Indexed) != 0;
 
-            string texCall = texOp.Inst == Instruction.ImageLoad ? "imageLoad" : "imageStore";
+            string texCall;
+
+            if (texOp.Inst == Instruction.ImageAtomic || texOp.Inst == Instruction.ImageReduce)
+            {
+                texCall = (texOp.Flags & TextureFlags.AtomicMask) switch {
+                    TextureFlags.Add        => "imageAtomicAdd",
+                    TextureFlags.Minimum    => "imageAtomicMin",
+                    TextureFlags.Maximum    => "imageAtomicMax",
+                    TextureFlags.Increment  => "imageAtomicAdd", // TODO
+                    TextureFlags.Decrement  => "imageAtomicAdd", // TODO
+                    TextureFlags.BitwiseAnd => "imageAtomicAnd",
+                    TextureFlags.BitwiseOr  => "imageAtomicOr",
+                    TextureFlags.BitwiseXor => "imageAtomicXor",
+                    TextureFlags.Swap       => "imageAtomicExchange",
+                    _                       => "imageAtomicAdd",
+                };
+            }
+            else
+            {
+                texCall = texOp.Inst == Instruction.ImageLoad ? "imageLoad" : "imageStore";
+            }
+             
 
             int srcIndex = isBindless ? 1 : 0;
 
@@ -128,6 +149,11 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl.Instructions
                 };
 
                 Append(prefix + "vec4(" + string.Join(", ", cElems) + ")");
+            } 
+            else if (texOp.Inst == Instruction.ImageAtomic || texOp.Inst == Instruction.ImageReduce)
+            {
+                //VariableType type = texOp.Format.GetComponentType();
+                Append(Src(VariableType.S32));
             }
 
             texCall += ")" + (texOp.Inst == Instruction.ImageLoad ? GetMask(texOp.Index) : "");

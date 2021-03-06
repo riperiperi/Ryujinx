@@ -277,6 +277,201 @@ namespace Ryujinx.Graphics.Shader.Instructions
             context.Add(operation);
         }
 
+        public static void Sured(EmitterContext context)
+        {
+            OpCodeSured op = (OpCodeSured)context.CurrOp;
+
+            SamplerType type = ConvertSamplerType(op.Dimensions);
+
+            if (type == SamplerType.None)
+            {
+                context.Config.GpuAccessor.Log("Invalid image reduction sampler type.");
+
+                return;
+            }
+
+            int raIndex = op.Ra.Index;
+            int rbIndex = op.Rb.Index;
+
+            Operand Ra()
+            {
+                if (raIndex > RegisterConsts.RegisterZeroIndex)
+                {
+                    return Const(0);
+                }
+
+                return context.Copy(Register(raIndex++, RegisterType.Gpr));
+            }
+
+            Operand Rb()
+            {
+                if (rbIndex > RegisterConsts.RegisterZeroIndex)
+                {
+                    return Const(0);
+                }
+
+                return context.Copy(Register(rbIndex++, RegisterType.Gpr));
+            }
+
+            List<Operand> sourcesList = new List<Operand>();
+
+            if (op.IsBindless)
+            {
+                sourcesList.Add(context.Copy(Register(op.Rc)));
+            }
+
+            int coordsCount = type.GetDimensions();
+
+            for (int index = 0; index < coordsCount; index++)
+            {
+                sourcesList.Add(Ra());
+            }
+
+            if (Sample1DAs2D && (type & SamplerType.Mask) == SamplerType.Texture1D)
+            {
+                sourcesList.Add(Const(0));
+
+                type &= ~SamplerType.Mask;
+                type |= SamplerType.Texture2D;
+            }
+
+            if (type.HasFlag(SamplerType.Array))
+            {
+                sourcesList.Add(Ra());
+
+                type |= SamplerType.Array;
+            }
+
+            TextureFormat format = TextureFormat.R32Sint;
+
+            sourcesList.Add(Rb());
+
+            Operand[] sources = sourcesList.ToArray();
+
+            int handle = op.HandleOffset;
+
+            TextureFlags flags = (TextureFlags)((int)op.AtomicOp << 16);
+
+            if (op.IsBindless)
+            {
+                handle = 0;
+                flags |= TextureFlags.Bindless;
+            }
+
+            TextureOperation operation = new TextureOperation(
+                Instruction.ImageReduce,
+                type,
+                flags,
+                handle,
+                0,
+                null,
+                sources)
+            {
+                Format = format
+            };
+
+            context.Add(operation);
+        }
+
+        public static void Suatom(EmitterContext context)
+        {
+            OpCodeSuatom op = (OpCodeSuatom)context.CurrOp;
+
+            SamplerType type = ConvertSamplerType(op.Dimensions);
+
+            if (type == SamplerType.None)
+            {
+                context.Config.GpuAccessor.Log("Invalid image atomic sampler type.");
+
+                return;
+            }
+
+            int raIndex = op.Ra.Index;
+            int rbIndex = op.Rb.Index;
+
+            Operand Ra()
+            {
+                if (raIndex > RegisterConsts.RegisterZeroIndex)
+                {
+                    return Const(0);
+                }
+
+                return context.Copy(Register(raIndex++, RegisterType.Gpr));
+            }
+
+            Operand Rb()
+            {
+                if (rbIndex > RegisterConsts.RegisterZeroIndex)
+                {
+                    return Const(0);
+                }
+
+                return context.Copy(Register(rbIndex++, RegisterType.Gpr));
+            }
+
+            int rdIndex = op.Rd.Index;
+
+            Operand GetDest()
+            {
+                if (rdIndex > RegisterConsts.RegisterZeroIndex)
+                {
+                    return Const(0);
+                }
+
+                return Register(rdIndex++, RegisterType.Gpr);
+            }
+
+            List<Operand> sourcesList = new List<Operand>();
+
+            int coordsCount = type.GetDimensions();
+
+            for (int index = 0; index < coordsCount; index++)
+            {
+                sourcesList.Add(Ra());
+            }
+
+            if (Sample1DAs2D && (type & SamplerType.Mask) == SamplerType.Texture1D)
+            {
+                sourcesList.Add(Const(0));
+
+                type &= ~SamplerType.Mask;
+                type |= SamplerType.Texture2D;
+            }
+
+            if (type.HasFlag(SamplerType.Array))
+            {
+                sourcesList.Add(Ra());
+
+                type |= SamplerType.Array;
+            }
+
+            TextureFormat format = TextureFormat.R32Sint;
+
+            if (op.ByteAddress) { }
+
+            sourcesList.Add(Rb());
+
+            Operand[] sources = sourcesList.ToArray();
+
+            int handle = op.HandleOffset;
+
+            TextureFlags flags = (TextureFlags)((int)op.AtomicOp << 16);
+
+            TextureOperation operation = new TextureOperation(
+                Instruction.ImageAtomic,
+                type,
+                flags,
+                handle,
+                0,
+                GetDest(),
+                sources)
+            {
+                Format = format
+            };
+
+            context.Add(operation);
+        }
+
         public static void Tex(EmitterContext context)
         {
             EmitTextureSample(context, TextureFlags.None);
@@ -525,6 +720,8 @@ namespace Ryujinx.Graphics.Shader.Instructions
                         sourcesList.Add(Rb());
                         sourcesList.Add(Ra());
                         sourcesList.Add(Const(0));
+                        break;
+                    default:
                         break;
                 }
 

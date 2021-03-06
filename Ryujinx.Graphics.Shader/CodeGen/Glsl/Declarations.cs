@@ -472,12 +472,18 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl
                     scaleElements++; // Also includes render target scale, for gl_FragCoord.
                 }
 
-                context.AppendLine($"uniform float {stage}_renderScale[{scaleElements}];");
-
-                if (context.Config.UsedFeatures.HasFlag(FeatureFlags.IntegerSampling))
+                if (scaleElements > 0)
                 {
-                    context.AppendLine();
-                    AppendHelperFunction(context, $"Ryujinx.Graphics.Shader/CodeGen/Glsl/HelperFunctions/TexelFetchScale_{stage}.glsl");
+                    context.AppendLine($"uniform float {stage}_renderScale[{scaleElements}];");
+
+                    if (context.Config.UsedFeatures.HasFlag(FeatureFlags.IntegerSampling))
+                    {
+                        context.AppendLine();
+                        AppendHelperFunction(context, $"Ryujinx.Graphics.Shader/CodeGen/Glsl/HelperFunctions/TexelFetchScale_{stage}.glsl");
+                    }
+                } else
+                {
+
                 }
 
                 return true;

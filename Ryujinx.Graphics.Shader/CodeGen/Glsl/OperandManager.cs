@@ -317,7 +317,9 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl
                 }
                 else if (operation is AstTextureOperation texOp &&
                          (texOp.Inst == Instruction.ImageLoad ||
-                          texOp.Inst == Instruction.ImageStore))
+                          texOp.Inst == Instruction.ImageStore ||
+                          texOp.Inst == Instruction.ImageAtomic ||
+                          texOp.Inst == Instruction.ImageReduce))
                 {
                     return texOp.Format.GetComponentType();
                 }

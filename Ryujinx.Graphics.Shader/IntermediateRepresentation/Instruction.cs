@@ -69,6 +69,8 @@ namespace Ryujinx.Graphics.Shader.IntermediateRepresentation
         GroupMemoryBarrier,
         ImageLoad,
         ImageStore,
+        ImageAtomic,
+        ImageReduce,
         IsNan,
         LoadAttribute,
         LoadConstant,
