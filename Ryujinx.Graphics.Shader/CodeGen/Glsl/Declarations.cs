@@ -481,9 +481,6 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl
                         context.AppendLine();
                         AppendHelperFunction(context, $"Ryujinx.Graphics.Shader/CodeGen/Glsl/HelperFunctions/TexelFetchScale_{stage}.glsl");
                     }
-                } else
-                {
-
                 }
 
                 return true;
