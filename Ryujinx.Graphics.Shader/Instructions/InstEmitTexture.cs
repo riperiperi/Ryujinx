@@ -377,7 +377,7 @@ namespace Ryujinx.Graphics.Shader.Instructions
             }
 
             TextureOperation operation = new TextureOperation(
-                Instruction.ImageReduce,
+                Instruction.ImageAtomic,
                 type,
                 flags,
                 handle,

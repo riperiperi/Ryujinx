@@ -58,8 +58,9 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
 
                     SetHandle(config, texOp, src0.GetCbufOffset() | (src1.GetCbufOffset() << 16), src0.GetCbufSlot());
                 }
-                else if (texOp.Inst == Instruction.ImageLoad || texOp.Inst == Instruction.ImageStore ||
-                         texOp.Inst == Instruction.ImageAtomic || texOp.Inst == Instruction.ImageReduce)
+                else if (texOp.Inst == Instruction.ImageLoad ||
+                         texOp.Inst == Instruction.ImageStore ||
+                         texOp.Inst == Instruction.ImageAtomic)
                 {
                     Operand src0 = Utils.FindLastOperation(texOp.GetSource(0), block);
 
@@ -68,7 +69,11 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
                         int cbufOffset = src0.GetCbufOffset();
                         int cbufSlot = src0.GetCbufSlot();
 
-                        if (!(texOp.Inst == Instruction.ImageAtomic || texOp.Inst == Instruction.ImageReduce))
+                        if (texOp.Inst == Instruction.ImageAtomic)
+                        {
+                            texOp.Format = config.GetTextureFormatAtomic(texOp.Handle);
+                        }
+                        else
                         {
                             texOp.Format = config.GetTextureFormat(cbufOffset, cbufSlot);
                         }
