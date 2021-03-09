@@ -158,6 +158,28 @@ namespace Ryujinx.Graphics.Shader.Translation
             return format;
         }
 
+        private bool FormatSupportedAtomic(TextureFormat format)
+        {
+            return format == TextureFormat.R32Sint || format == TextureFormat.R32Uint;
+        }
+
+        public TextureFormat GetTextureFormatAtomic(int handle)
+        {
+            // Atomic image instructions do not support GL_EXT_shader_image_load_formatted, 
+            // and must have a type specified. Default to R32Sint if not available.
+
+            var format = GpuAccessor.QueryTextureFormat(handle);
+
+            if (!FormatSupportedAtomic(format))
+            {
+                GpuAccessor.Log($"Unsupported format for texture {handle}: {format}.");
+
+                format = TextureFormat.R32Sint;
+            }
+
+            return format;
+        }
+
         public void SizeAdd(int size)
         {
             Size += size;

@@ -25,6 +25,7 @@ namespace Ryujinx.Graphics.Shader.IntermediateRepresentation
         BitwiseAnd  = 5 << 16,
         BitwiseOr   = 6 << 16,
         BitwiseXor  = 7 << 16,
-        Swap        = 8 << 16
+        Swap        = 8 << 16,
+        CAS         = 9 << 16
     }
 }

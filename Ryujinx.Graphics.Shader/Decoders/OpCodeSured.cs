@@ -14,14 +14,14 @@ namespace Ryujinx.Graphics.Shader.Decoders
         public Register Rb { get; }
         public Register Rc { get; }
 
+        public ReductionType Type { get; }
         public AtomicOp AtomicOp { get; }
-
         public ImageDimensions Dimensions { get; }
-
         public ClampMode ClampMode { get; }
 
-        public bool UseComponents { get; }
+        public bool UseType { get; }
         public bool IsBindless { get; }
+        public bool ByteAddress { get; }
 
         public new static OpCode Create(InstEmitter emitter, ulong address, long opCode) => new OpCodeSured(emitter, address, opCode);
 
@@ -31,12 +31,14 @@ namespace Ryujinx.Graphics.Shader.Decoders
             Rb = new Register(opCode.Extract(0, 8), RegisterType.Gpr);
             Rc = new Register(opCode.Extract(39, 8), RegisterType.Gpr);
 
+            Type = (ReductionType)opCode.Extract(20, 3);
+            ByteAddress = opCode.Extract(23);
             AtomicOp = (AtomicOp)opCode.Extract(24, 3);
             Dimensions = (ImageDimensions)opCode.Extract(33, 3);
             ClampMode = (ClampMode)opCode.Extract(49, 2);
 
             IsBindless = !opCode.Extract(51);
-            UseComponents = !opCode.Extract(52);
+            UseType = opCode.Extract(52);
         }
     }
 }

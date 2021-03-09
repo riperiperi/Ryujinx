@@ -38,6 +38,7 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl.Instructions
                     TextureFlags.BitwiseOr  => "imageAtomicOr",
                     TextureFlags.BitwiseXor => "imageAtomicXor",
                     TextureFlags.Swap       => "imageAtomicExchange",
+                    TextureFlags.CAS        => "imageAtomicCompSwap",
                     _                       => "imageAtomicAdd",
                 };
             }
@@ -149,14 +150,33 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl.Instructions
                 };
 
                 Append(prefix + "vec4(" + string.Join(", ", cElems) + ")");
-            } 
-            else if (texOp.Inst == Instruction.ImageAtomic || texOp.Inst == Instruction.ImageReduce)
-            {
-                //VariableType type = texOp.Format.GetComponentType();
-                Append(Src(VariableType.S32));
             }
 
-            texCall += ")" + (texOp.Inst == Instruction.ImageLoad ? GetMask(texOp.Index) : "");
+            if (texOp.Inst == Instruction.ImageAtomic || texOp.Inst == Instruction.ImageReduce)
+            {
+                int texIndex = context.FindImageDescriptorIndex(texOp);
+                context.ImageDescriptors[texIndex] = context.ImageDescriptors[texIndex].SetFlag(TextureUsageFlags.ImageStore);
+
+                VariableType type = texOp.Format.GetComponentType();
+
+                if ((texOp.Flags & TextureFlags.AtomicMask) == TextureFlags.CAS)
+                {
+                    Append(Src(type)); // Compare value.
+                }
+
+                Append(Src(type));
+
+                texCall += ")";
+
+                if (type != VariableType.S32)
+                {
+                    texCall = "int(" + texCall + ")";
+                }
+            } 
+            else
+            {
+                texCall += ")" + (texOp.Inst == Instruction.ImageLoad ? GetMask(texOp.Index) : "");
+            }
 
             return texCall;
         }
