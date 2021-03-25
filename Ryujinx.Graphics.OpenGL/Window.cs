@@ -29,6 +29,8 @@ namespace Ryujinx.Graphics.OpenGL
             CopyTextureToFrameBufferRGB(0, GetCopyFramebufferHandleLazy(), (TextureView)texture, crop);
 
             GL.Enable(EnableCap.FramebufferSrgb);
+
+            GraphicsContext.CurrentContext.SwapBuffers();
         }
 
         public void SetSize(int width, int height)

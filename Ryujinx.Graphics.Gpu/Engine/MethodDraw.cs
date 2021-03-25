@@ -193,7 +193,10 @@ namespace Ryujinx.Graphics.Gpu.Engine
                 _instanceIndex = 0;
             }
 
-            _context.Renderer.Pipeline.SetPrimitiveTopology(topology);
+            if (Topology != topology)
+            {
+                _context.Renderer.Pipeline.SetPrimitiveTopology(topology);
+            }
 
             Topology = topology;
         }

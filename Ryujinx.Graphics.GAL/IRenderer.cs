@@ -41,6 +41,11 @@ namespace Ryujinx.Graphics.GAL
 
         void ResetCounter(CounterType type);
 
+        void RunLoop(Action gpuLoop)
+        {
+            gpuLoop();
+        }
+
         void WaitSync(ulong id);
 
         void Initialize(GraphicsDebugLevel logLevel);
