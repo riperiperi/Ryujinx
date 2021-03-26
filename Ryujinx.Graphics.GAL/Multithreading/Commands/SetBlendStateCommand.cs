@@ -1,11 +1,12 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetBlendStateCommand : IGALCommand
+    struct SetBlendStateCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetBlendState;
         private int _index;
         private BlendDescriptor _blend;
 
-        public SetBlendStateCommand(int index, BlendDescriptor blend)
+        public void Set(int index, BlendDescriptor blend)
         {
             _index = index;
             _blend = blend;

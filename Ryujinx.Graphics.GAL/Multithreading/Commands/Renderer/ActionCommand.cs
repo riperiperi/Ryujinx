@@ -1,19 +1,21 @@
-﻿using System;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using System;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 {
-    class ActionCommand : IGALCommand
+    struct ActionCommand : IGALCommand
     {
-        private Action _action;
+        public CommandType CommandType => CommandType.Action;
+        private TableRef<Action> _action;
 
-        public ActionCommand(Action action)
+        public void Set(TableRef<Action> action)
         {
             _action = action;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _action();
+            _action.Get(threaded)();
         }
     }
 }

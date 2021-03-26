@@ -1,10 +1,11 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetPrimitiveTopologyCommand : IGALCommand
+    struct SetPrimitiveTopologyCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetPrimitiveTopology;
         private PrimitiveTopology _topology;
 
-        public SetPrimitiveTopologyCommand(PrimitiveTopology topology)
+        public void Set(PrimitiveTopology topology)
         {
             _topology = topology;
         }

@@ -1,22 +1,24 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 using System.Linq;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetRenderTargetsCommand : IGALCommand
+    struct SetRenderTargetsCommand : IGALCommand
     {
-        private ThreadedTexture[] _colors;
-        private ThreadedTexture _depthStencil;
+        public CommandType CommandType => CommandType.SetRenderTargets;
+        private TableRef<ThreadedTexture[]> _colors;
+        private TableRef<ThreadedTexture> _depthStencil;
 
-        public SetRenderTargetsCommand(ITexture[] colors, ITexture depthStencil)
+        public void Set(TableRef<ThreadedTexture[]> colors, TableRef<ThreadedTexture> depthStencil)
         {
-            _colors = colors.Select(color => color as ThreadedTexture).ToArray();
-            _depthStencil = depthStencil as ThreadedTexture;
+            _colors = colors;
+            _depthStencil = depthStencil;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            renderer.Pipeline.SetRenderTargets(_colors.Select(color => color?.Base).ToArray(), _depthStencil?.Base);
+            renderer.Pipeline.SetRenderTargets(_colors.Get(threaded).Select(color => color?.Base).ToArray(), _depthStencil.Get(threaded)?.Base);
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Ryujinx.Graphics.GAL.Multithreading.Commands.CounterEvent;
+using Ryujinx.Graphics.GAL.Multithreading.Model;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Resources
 {
@@ -19,16 +20,22 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Resources
             ClearCounter = clearCounter;
         }
 
+        private TableRef<T> Ref<T>(T reference)
+        {
+            return new TableRef<T>(_renderer, reference);
+        }
+
+
         public void Dispose()
         {
-            _renderer.QueueCommand(new CounterEventDisposeCommand(this));
+            _renderer.New<CounterEventDisposeCommand>().Set(Ref(this));
+            _renderer.QueueCommand();
         }
 
         public void Flush()
         {
-            var cmd = new CounterEventFlushCommand(this);
-
-            _renderer.InvokeCommand(cmd);
+            _renderer.New<CounterEventFlushCommand>().Set(Ref(this));
+            _renderer.InvokeCommand();
         }
     }
 }

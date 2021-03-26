@@ -1,15 +1,17 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 {
-    class TextureCopyToCommand : IGALCommand
+    struct TextureCopyToCommand : IGALCommand
     {
-        private ThreadedTexture _texture;
-        private ThreadedTexture _destination;
+        public CommandType CommandType => CommandType.TextureCopyTo;
+        private TableRef<ThreadedTexture> _texture;
+        private TableRef<ThreadedTexture> _destination;
         private int _firstLayer;
         private int _firstLevel;
 
-        public TextureCopyToCommand(ThreadedTexture texture, ThreadedTexture destination, int firstLayer, int firstLevel)
+        public void Set(TableRef<ThreadedTexture> texture, TableRef<ThreadedTexture> destination, int firstLayer, int firstLevel)
         {
             _texture = texture;
             _destination = destination;
@@ -19,7 +21,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _texture.Base.CopyTo(_destination.Base, _firstLayer, _firstLevel);
+            ThreadedTexture source = _texture.Get(threaded);
+            source.Base.CopyTo(_destination.Get(threaded).Base, _firstLayer, _firstLevel);
         }
     }
 }

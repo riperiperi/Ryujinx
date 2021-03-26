@@ -2,8 +2,10 @@
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 {
-    class PreFrameCommand : IGALCommand
+    struct PreFrameCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.PreFrame;
+
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
             renderer.PreFrame();

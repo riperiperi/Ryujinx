@@ -1,7 +1,8 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetScissorCommand : IGALCommand
+    struct SetScissorCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetScissor;
         private int _index;
         private bool _enable;
         private int _x;
@@ -9,7 +10,7 @@
         private int _width;
         private int _height;
 
-        public SetScissorCommand(int index, bool enable, int x, int y, int width, int height)
+        public void Set(int index, bool enable, int x, int y, int width, int height)
         {
             _index = index;
             _enable = enable;

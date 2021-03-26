@@ -1,4 +1,5 @@
 ﻿using Ryujinx.Graphics.GAL.Multithreading.Commands.Shader;
+using Ryujinx.Graphics.GAL.Multithreading.Model;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Resources
 {
@@ -14,7 +15,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Resources
 
         public void Dispose()
         {
-            _renderer.QueueCommand(new ShaderDisposeCommand(this));
+            _renderer.New<ShaderDisposeCommand>().Set(new TableRef<ThreadedShader>(_renderer, this));
+            _renderer.QueueCommand();
         }
     }
 }

@@ -1,19 +1,21 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 {
-    class TextureReleaseCommand : IGALCommand
+    struct TextureReleaseCommand : IGALCommand
     {
-        private ThreadedTexture _texture;
+        public CommandType CommandType => CommandType.TextureRelease;
+        private TableRef<ThreadedTexture> _texture;
 
-        public TextureReleaseCommand(ThreadedTexture texture)
+        public void Set(TableRef<ThreadedTexture> texture)
         {
             _texture = texture;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _texture.Base.Release();
+            _texture.Get(threaded).Base.Release();
         }
     }
 }

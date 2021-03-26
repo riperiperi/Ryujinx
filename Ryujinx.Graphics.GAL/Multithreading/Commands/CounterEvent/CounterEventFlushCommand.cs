@@ -1,19 +1,21 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.CounterEvent
 {
-    class CounterEventFlushCommand : IGALCommand
+    struct CounterEventFlushCommand : IGALCommand
     {
-        private ThreadedCounterEvent _event;
+        public CommandType CommandType => CommandType.CounterEventFlush;
+        private TableRef<ThreadedCounterEvent> _event;
 
-        public CounterEventFlushCommand(ThreadedCounterEvent evt)
+        public void Set(TableRef<ThreadedCounterEvent> evt)
         {
             _event = evt;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _event.Base.Flush();
+            _event.Get(threaded).Base.Flush();
         }
     }
 }

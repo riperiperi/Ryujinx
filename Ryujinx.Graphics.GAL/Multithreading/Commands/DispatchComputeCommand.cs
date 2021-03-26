@@ -1,12 +1,13 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class DispatchComputeCommand : IGALCommand
+    struct DispatchComputeCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.DispatchCompute;
         private int _groupsX;
         private int _groupsY;
         private int _groupsZ;
 
-        public DispatchComputeCommand(int groupsX, int groupsY, int groupsZ)
+        public void Set(int groupsX, int groupsY, int groupsZ)
         {
             _groupsX = groupsX;
             _groupsY = groupsY;

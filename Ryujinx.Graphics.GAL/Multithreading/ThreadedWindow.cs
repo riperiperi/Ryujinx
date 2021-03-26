@@ -1,4 +1,5 @@
 ﻿using Ryujinx.Graphics.GAL.Multithreading.Commands.Window;
+using Ryujinx.Graphics.GAL.Multithreading.Model;
 using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading
@@ -20,7 +21,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             // This is a multithread rate limit - we can't be more than one frame behind the command queue.
 
             _renderer.WaitForFrame();
-            _renderer.QueueCommand(new WindowPresentCommand(texture as ThreadedTexture, crop));
+            _renderer.New<WindowPresentCommand>().Set(new TableRef<ThreadedTexture>(_renderer, texture as ThreadedTexture), crop);
+            _renderer.QueueCommand();
         }
 
         public void SetSize(int width, int height)

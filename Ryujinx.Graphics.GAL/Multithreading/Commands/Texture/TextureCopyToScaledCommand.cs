@@ -1,16 +1,18 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 {
-    class TextureCopyToScaledCommand : IGALCommand
+    struct TextureCopyToScaledCommand : IGALCommand
     {
-        private ThreadedTexture _texture;
-        private ThreadedTexture _destination;
+        public CommandType CommandType => CommandType.TextureCopyToScaled;
+        private TableRef<ThreadedTexture> _texture;
+        private TableRef<ThreadedTexture> _destination;
         private Extents2D _srcRegion;
         private Extents2D _dstRegion;
         private bool _linearFilter;
 
-        public TextureCopyToScaledCommand(ThreadedTexture texture, ThreadedTexture destination, Extents2D srcRegion, Extents2D dstRegion, bool linearFilter)
+        public void Set(TableRef<ThreadedTexture> texture, TableRef<ThreadedTexture> destination, Extents2D srcRegion, Extents2D dstRegion, bool linearFilter)
         {
             _texture = texture;
             _destination = destination;
@@ -21,7 +23,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _texture.Base.CopyTo(_destination.Base, _srcRegion, _dstRegion, _linearFilter);
+            ThreadedTexture source = _texture.Get(threaded);
+            source.Base.CopyTo(_destination.Get(threaded).Base, _srcRegion, _dstRegion, _linearFilter);
         }
     }
 }

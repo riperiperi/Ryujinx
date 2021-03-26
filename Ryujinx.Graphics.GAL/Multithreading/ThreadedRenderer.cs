@@ -2,11 +2,15 @@
 using Ryujinx.Graphics.GAL.Multithreading.Commands;
 using Ryujinx.Graphics.GAL.Multithreading.Commands.Buffer;
 using Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer;
+using Ryujinx.Graphics.GAL.Multithreading.Model;
 using Ryujinx.Graphics.GAL.Multithreading.Resources;
 using Ryujinx.Graphics.Shader;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace Ryujinx.Graphics.GAL.Multithreading
@@ -19,6 +23,10 @@ namespace Ryujinx.Graphics.GAL.Multithreading
     /// </summary>
     public class ThreadedRenderer : IRenderer
     {
+        private const int MaxRefsPerCommand = 3;
+        private const int ElementSize = 128;
+        private const int QueueCount = 10000;
+
         private IRenderer _baseRenderer;
         private Thread _gpuThread;
         private bool _disposed;
@@ -29,10 +37,22 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         private ManualResetEventSlim _galWorkAvailable;
         private ConcurrentQueue<IGALCommand> _galQueue;
 
-        private IGALCommand _invokeCommand;
         private ManualResetEventSlim _invokeRun;
 
         private bool _lastSampleCounterClear = true;
+
+        private byte[] _commandQueue;
+        private object[] _refQueue;
+
+        private int _consumerPtr;
+        private int _commandCount;
+
+        private int _producerPtr;
+        private int _lastProducedPtr;
+        private int _invokePtr;
+
+        private int _refProducerPtr;
+        private int _refConsumerPtr;
 
         internal BufferMap Buffers { get; }
         internal SyncMap Sync { get; }
@@ -54,6 +74,9 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             _galWorkAvailable = new ManualResetEventSlim(false);
             _galQueue = new ConcurrentQueue<IGALCommand>();
             _invokeRun = new ManualResetEventSlim();
+
+            _commandQueue = new byte[ElementSize * QueueCount];
+            _refQueue = new object[MaxRefsPerCommand * QueueCount];
         }
 
         public void RunLoop(Action gpuLoop)
@@ -64,7 +87,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
                 gpuLoop();
                 _running = false;
                 _galWorkAvailable.Set();
-                });
+            });
 
             _gpuThread.Start();
 
@@ -80,14 +103,27 @@ namespace Ryujinx.Graphics.GAL.Multithreading
                 _galWorkAvailable.Wait();
                 _galWorkAvailable.Reset();
 
-                while (_galQueue.TryDequeue(out IGALCommand command))
-                {
-                    command.Run(this, _baseRenderer);
+                // The other thread can only increase the command count.
+                // We can assume that if it is above 0, it will stay there or get higher.
 
-                    if (command == _invokeCommand)
+                while (_commandCount > 0)
+                {
+                    int commandPtr = _consumerPtr;
+
+                    Span<byte> command = new Span<byte>(_commandQueue, commandPtr * ElementSize, ElementSize);
+
+                    // Run the command.
+
+                    CommandHelper.RunCommand(command, this, _baseRenderer);
+
+                    if (Interlocked.CompareExchange(ref _invokePtr, -1, commandPtr) == commandPtr)
                     {
                         _invokeRun.Set();
                     }
+
+                    _consumerPtr = (_consumerPtr + 1) % QueueCount;
+
+                    Interlocked.Decrement(ref _commandCount);
                 }
             }
         }
@@ -101,25 +137,79 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             return memory;
         }
 
-        internal void QueueCommand(IGALCommand command)
+        private TableRef<T> Ref<T>(T reference)
         {
-            _galQueue.Enqueue(command);
-            _galWorkAvailable.Set();
+            return new TableRef<T>(this, reference);
         }
 
-        internal void InvokeCommand(IGALCommand command)
+        internal ref T New<T>() where T : struct
+        {
+            while (_producerPtr == (_consumerPtr + QueueCount - 1) % QueueCount)
+            {
+                // If incrementing the producer pointer would overflow, we need to wait.
+                // _consumerPtr can only move forward, so there's no race to worry about here.
+
+                Thread.Sleep(1);
+            }
+
+            int taken = _producerPtr;
+            _lastProducedPtr = taken;
+
+            _producerPtr = (_producerPtr + 1) % QueueCount;
+
+            Span<byte> memory = new Span<byte>(_commandQueue, taken * ElementSize, ElementSize);
+            ref T result = ref Unsafe.As<byte, T>(ref MemoryMarshal.GetReference(memory));
+
+            memory[memory.Length - 1] = (byte)((IGALCommand)result).CommandType;
+
+            return ref result;
+        }
+
+        internal int AddTableRef(object obj)
+        {
+            // The reference table is sized so that it will never overflow, so long as the references are taken after the command is allocated.
+
+            int index = _refProducerPtr;
+
+            _refQueue[index] = obj;
+
+            _refProducerPtr = (_refProducerPtr + 1) % _refQueue.Length;
+
+            return index;
+        }
+
+        internal object RemoveTableRef(int index)
+        {
+            Debug.Assert(index == _refConsumerPtr);
+
+            object result = _refQueue[_refConsumerPtr];
+            _refQueue[_refConsumerPtr] = null;
+
+            _refConsumerPtr = (_refConsumerPtr + 1) % _refQueue.Length;
+
+            return result;
+        }
+
+        internal void QueueCommand()
+        {
+            int result = Interlocked.Increment(ref _commandCount);
+
+            if (result == 1)
+            {
+                _galWorkAvailable.Set();
+            }
+        }
+
+        internal void InvokeCommand()
         {
             _invokeRun.Reset();
-            _invokeCommand = command;
+            _invokePtr = _lastProducedPtr;
 
-            _galQueue.Enqueue(command);
-            _galWorkAvailable.Set();
+            QueueCommand();
 
             // Wait for the command to complete.
             _invokeRun.Wait();
-            _invokeCommand = null;
         }
-
 
         internal void WaitForFrame()
         {
@@ -141,7 +231,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             if (IsGpuThread())
             {
                 // The action must be performed on the render thread.
-                InvokeCommand(new ActionCommand(action));
+                New<ActionCommand>().Set(Ref(action));
+                InvokeCommand();
             }
             else
             {
@@ -152,8 +243,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         public IShader CompileShader(ShaderStage stage, string code)
         {
             var shader = new ThreadedShader(this);
-            var cmd = new CompileShaderCommand(shader, stage, code);
-            QueueCommand(cmd);
+            New<CompileShaderCommand>().Set(Ref(shader), stage, Ref(code));
+            QueueCommand();
 
             return shader;
         }
@@ -161,8 +252,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         public BufferHandle CreateBuffer(int size)
         {
             BufferHandle handle = Buffers.CreateBufferHandle();
-            var cmd = new CreateBufferCommand(handle, size);
-            QueueCommand(cmd);
+            New<CreateBufferCommand>().Set(handle, size);
+            QueueCommand();
 
             return handle;
         }
@@ -170,8 +261,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         public IProgram CreateProgram(IShader[] shaders, TransformFeedbackDescriptor[] transformFeedbackDescriptors)
         {
             var program = new ThreadedProgram(this);
-            var cmd = new CreateProgramCommand(program, shaders, transformFeedbackDescriptors);
-            QueueCommand(cmd);
+            New<CreateProgramCommand>().Set(Ref(program), Ref(shaders), Ref(transformFeedbackDescriptors));
+            QueueCommand();
 
             return program;
         }
@@ -179,8 +270,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         public ISampler CreateSampler(SamplerCreateInfo info)
         {
             var sampler = new ThreadedSampler(this);
-            var cmd = new CreateSamplerCommand(sampler, info);
-            QueueCommand(cmd);
+            New<CreateSamplerCommand>().Set(Ref(sampler), info);
+            QueueCommand();
 
             return sampler;
         }
@@ -188,7 +279,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         public void CreateSync(ulong id)
         {
             Sync.CreateSyncHandle(id);
-            QueueCommand(new CreateSyncCommand(id));
+            New<CreateSyncCommand>().Set(id);
+            QueueCommand();
         }
 
         public ITexture CreateTexture(TextureCreateInfo info, float scale)
@@ -196,8 +288,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             if (IsGpuThread())
             {
                 var texture = new ThreadedTexture(this, info, scale);
-                var cmd = new CreateTextureCommand(texture, info, scale);
-                QueueCommand(cmd);
+                New<CreateTextureCommand>().Set(Ref(texture), info, scale);
+                QueueCommand();
 
                 return texture;
             }
@@ -212,17 +304,19 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         public void DeleteBuffer(BufferHandle buffer)
         {
-            QueueCommand(new BufferDisposeCommand(buffer));
+            New<BufferDisposeCommand>().Set(buffer);
+            QueueCommand();
         }
 
         public byte[] GetBufferData(BufferHandle buffer, int offset, int size)
         {
             if (IsGpuThread())
             {
-                var cmd = new BufferGetDataCommand(buffer, offset, size);
-                InvokeCommand(cmd);
+                ResultBox<byte[]> box = new ResultBox<byte[]>();
+                New<BufferGetDataCommand>().Set(buffer, offset, size, Ref(box));
+                InvokeCommand();
 
-                return cmd.Result;
+                return box.Result;
             }
             else
             {
@@ -232,10 +326,11 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         public Capabilities GetCapabilities()
         {
-            var cmd = new GetCapabilitiesCommand();
-            InvokeCommand(cmd);
+            ResultBox<Capabilities> box = new ResultBox<Capabilities>();
+            New<GetCapabilitiesCommand>().Set(Ref(box));
+            InvokeCommand();
 
-            return cmd.Result;
+            return box.Result;
         }
 
         /// <summary>
@@ -250,21 +345,23 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         public IProgram LoadProgramBinary(byte[] programBinary)
         {
             var program = new ThreadedProgram(this);
-            var cmd = new LoadProgramBinaryCommand(program, programBinary);
-            QueueCommand(cmd);
+            New<LoadProgramBinaryCommand>().Set(Ref(program), Ref(programBinary));
+            QueueCommand();
 
             return program;
         }
 
         public void PreFrame()
         {
-            QueueCommand(new PreFrameCommand());
+            New<PreFrameCommand>();
+            QueueCommand();
         }
 
         public ICounterEvent ReportCounter(CounterType type, EventHandler<ulong> resultHandler)
         {
             ThreadedCounterEvent evt = new ThreadedCounterEvent(this, type, _lastSampleCounterClear);
-            QueueCommand(new ReportCounterCommand(evt, type, resultHandler));
+            New<ReportCounterCommand>().Set(Ref(evt), type, Ref(resultHandler));
+            QueueCommand();
 
             if (type == CounterType.SamplesPassed)
             {
@@ -276,18 +373,21 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         public void ResetCounter(CounterType type)
         {
-            QueueCommand(new ResetCounterCommand(type));
+            New<ResetCounterCommand>().Set(type);
+            QueueCommand();
             _lastSampleCounterClear = true;
         }
 
         public void SetBufferData(BufferHandle buffer, int offset, ReadOnlySpan<byte> data)
         {
-            QueueCommand(new BufferSetDataCommand(buffer, offset, CopySpan(data), data.Length));
+            New<BufferSetDataCommand>().Set(buffer, offset, Ref(CopySpan(data)), data.Length);
+            QueueCommand();
         }
 
         public void UpdateCounters()
         {
-            QueueCommand(new UpdateCountersCommand());
+            New<UpdateCountersCommand>();
+            QueueCommand();
         }
 
         public void WaitSync(ulong id)

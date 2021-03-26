@@ -1,10 +1,11 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Buffer
 {
-    class BufferDisposeCommand : IGALCommand
+    struct BufferDisposeCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.BufferDispose;
         private BufferHandle _buffer;
 
-        public BufferDisposeCommand(BufferHandle buffer)
+        public void Set(BufferHandle buffer)
         {
             _buffer = buffer;
         }

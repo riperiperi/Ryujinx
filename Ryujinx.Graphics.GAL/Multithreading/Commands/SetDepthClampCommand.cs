@@ -1,10 +1,11 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetDepthClampCommand : IGALCommand
+    struct SetDepthClampCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetDepthClamp;
         private bool _clamp;
 
-        public SetDepthClampCommand(bool clamp)
+        public void Set(bool clamp)
         {
             _clamp = clamp;
         }

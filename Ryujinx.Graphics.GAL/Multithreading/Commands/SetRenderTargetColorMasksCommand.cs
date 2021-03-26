@@ -1,14 +1,16 @@
-﻿using System;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using System;
 using System.Buffers;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetRenderTargetColorMasksCommand : IGALCommand
+    struct SetRenderTargetColorMasksCommand : IGALCommand
     {
-        private IMemoryOwner<uint> _componentMask;
+        public CommandType CommandType => CommandType.SetRenderTargetColorMasks;
+        private TableRef<IMemoryOwner<uint>> _componentMask;
         private int _componentMaskLength;
 
-        public SetRenderTargetColorMasksCommand(IMemoryOwner<uint> componentMask, int componentMaskLength)
+        public void Set(TableRef<IMemoryOwner<uint>> componentMask, int componentMaskLength)
         {
             _componentMask = componentMask;
             _componentMaskLength = componentMaskLength;
@@ -16,9 +18,11 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            ReadOnlySpan<uint> componentMask = _componentMask.Memory.Span.Slice(0, _componentMaskLength);
+            IMemoryOwner<uint> maskOwner = _componentMask.Get(threaded);
+
+            ReadOnlySpan<uint> componentMask = maskOwner.Memory.Span.Slice(0, _componentMaskLength);
             renderer.Pipeline.SetRenderTargetColorMasks(componentMask);
-            _componentMask.Dispose();
+            maskOwner.Dispose();
         }
     }
 }

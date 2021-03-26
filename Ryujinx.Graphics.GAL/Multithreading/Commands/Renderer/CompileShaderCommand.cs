@@ -1,15 +1,17 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 using Ryujinx.Graphics.Shader;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 {
-    class CompileShaderCommand : IGALCommand
+    struct CompileShaderCommand : IGALCommand
     {
-        private ThreadedShader _shader;
+        public CommandType CommandType => CommandType.CompileShader;
+        private TableRef<ThreadedShader> _shader;
         private ShaderStage _stage;
-        private string _code;
+        private TableRef<string> _code;
 
-        public CompileShaderCommand(ThreadedShader shader, ShaderStage stage, string code)
+        public void Set(TableRef<ThreadedShader> shader, ShaderStage stage, TableRef<string> code)
         {
             _shader = shader;
             _stage = stage;
@@ -18,7 +20,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _shader.Base = renderer.CompileShader(_stage, _code);
+            ThreadedShader shader = _shader.Get(threaded);
+            shader.Base = renderer.CompileShader(_stage, _code.Get(threaded));
         }
     }
 }

@@ -1,13 +1,15 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 {
-    class TextureSetStorageCommand : IGALCommand
+    struct TextureSetStorageCommand : IGALCommand
     {
-        private ThreadedTexture _texture;
+        public CommandType CommandType => CommandType.TextureSetStorage;
+        private TableRef<ThreadedTexture> _texture;
         private BufferRange _storage;
 
-        public TextureSetStorageCommand(ThreadedTexture texture, BufferRange storage)
+        public void Set(TableRef<ThreadedTexture> texture, BufferRange storage)
         {
             _texture = texture;
             _storage = storage;
@@ -15,7 +17,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _texture.Base.SetStorage(threaded.Buffers.MapBufferRange(_storage));
+            _texture.Get(threaded).Base.SetStorage(threaded.Buffers.MapBufferRange(_storage));
         }
     }
 }

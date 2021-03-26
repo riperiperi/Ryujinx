@@ -1,4 +1,5 @@
 ﻿using Ryujinx.Graphics.GAL.Multithreading.Commands.Program;
+using Ryujinx.Graphics.GAL.Multithreading.Model;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Resources
 {
@@ -12,18 +13,24 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Resources
             _renderer = renderer;
         }
 
+        private TableRef<T> Ref<T>(T reference)
+        {
+            return new TableRef<T>(_renderer, reference);
+        }
+
         public void Dispose()
         {
-            _renderer.QueueCommand(new ProgramDisposeCommand(this));
+            _renderer.New<ProgramDisposeCommand>().Set(Ref(this));
+            _renderer.QueueCommand();
         }
 
         public byte[] GetBinary()
         {
-            var cmd = new ProgramGetBinaryCommand(this);
+            ResultBox<byte[]> box = new ResultBox<byte[]>();
+            _renderer.New<ProgramGetBinaryCommand>().Set(Ref(this), Ref(box));
+            _renderer.InvokeCommand();
 
-            _renderer.InvokeCommand(cmd);
-
-            return cmd.Result;
+            return box.Result;
         }
     }
 }

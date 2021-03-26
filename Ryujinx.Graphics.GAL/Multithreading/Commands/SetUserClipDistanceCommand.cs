@@ -1,11 +1,12 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetUserClipDistanceCommand : IGALCommand
+    struct SetUserClipDistanceCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetUserClipDistance;
         private int _index;
         private bool _enableClip;
 
-        public SetUserClipDistanceCommand(int index, bool enableClip)
+        public void Set(int index, bool enableClip)
         {
             _index = index;
             _enableClip = enableClip;

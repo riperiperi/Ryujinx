@@ -1,13 +1,14 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class ClearRenderTargetDepthStencilCommand : IGALCommand
+    struct ClearRenderTargetDepthStencilCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.ClearRenderTargetDepthStencil;
         private float _depthValue;
         private bool _depthMask;
         private int _stencilValue;
         private int _stencilMask;
 
-        public ClearRenderTargetDepthStencilCommand(float depthValue, bool depthMask, int stencilValue, int stencilMask)
+        public void Set(float depthValue, bool depthMask, int stencilValue, int stencilMask)
         {
             _depthValue = depthValue;
             _depthMask = depthMask;

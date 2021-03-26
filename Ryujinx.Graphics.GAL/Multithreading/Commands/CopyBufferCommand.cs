@@ -1,14 +1,15 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class CopyBufferCommand : IGALCommand
+    struct CopyBufferCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.CopyBuffer;
         private BufferHandle _source;
         private BufferHandle _destination;
         private int _srcOffset;
         private int _dstOffset;
         private int _size;
 
-        public CopyBufferCommand(BufferHandle source, BufferHandle destination, int srcOffset, int dstOffset, int size)
+        public void Set(BufferHandle source, BufferHandle destination, int srcOffset, int dstOffset, int size)
         {
             _source = source;
             _destination = destination;

@@ -1,15 +1,17 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 using System.Linq;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 {
-    class CreateProgramCommand : IGALCommand
+    struct CreateProgramCommand : IGALCommand
     {
-        private ThreadedProgram _program;
-        private IShader[] _shaders;
-        private TransformFeedbackDescriptor[] _transformFeedbackDescriptors;
+        public CommandType CommandType => CommandType.CreateProgram;
+        private TableRef<ThreadedProgram> _program;
+        private TableRef<IShader[]> _shaders;
+        private TableRef<TransformFeedbackDescriptor[]> _transformFeedbackDescriptors;
 
-        public CreateProgramCommand(ThreadedProgram program, IShader[] shaders, TransformFeedbackDescriptor[] transformFeedbackDescriptors)
+        public void Set(TableRef<ThreadedProgram> program, TableRef<IShader[]> shaders, TableRef<TransformFeedbackDescriptor[]> transformFeedbackDescriptors)
         {
             _program = program;
             _shaders = shaders;
@@ -18,8 +20,10 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            IShader[] shaders = _shaders.Select(shader => (shader as ThreadedShader)?.Base).ToArray();
-            _program.Base = renderer.CreateProgram(shaders, _transformFeedbackDescriptors);
+            ThreadedProgram program = _program.Get(threaded);
+
+            IShader[] shaders = _shaders.Get(threaded).Select(shader => (shader as ThreadedShader)?.Base).ToArray();
+            program.Base = renderer.CreateProgram(shaders, _transformFeedbackDescriptors.Get(threaded));
         }
     }
 }

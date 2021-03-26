@@ -1,17 +1,19 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 {
-    class TextureCopyToSliceCommand : IGALCommand
+    struct TextureCopyToSliceCommand : IGALCommand
     {
-        private ThreadedTexture _texture;
-        private ThreadedTexture _destination;
+        public CommandType CommandType => CommandType.TextureCopyToSlice;
+        private TableRef<ThreadedTexture> _texture;
+        private TableRef<ThreadedTexture> _destination;
         private int _srcLayer;
         private int _dstLayer;
         private int _srcLevel;
         private int _dstLevel;
 
-        public TextureCopyToSliceCommand(ThreadedTexture texture, ThreadedTexture destination, int srcLayer, int dstLayer, int srcLevel, int dstLevel)
+        public void Set(TableRef<ThreadedTexture> texture, TableRef<ThreadedTexture> destination, int srcLayer, int dstLayer, int srcLevel, int dstLevel)
         {
             _texture = texture;
             _destination = destination;
@@ -23,7 +25,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _texture.Base.CopyTo(_destination.Base, _srcLayer, _dstLayer, _srcLevel, _dstLevel);
+            ThreadedTexture source = _texture.Get(threaded);
+            source.Base.CopyTo(_destination.Get(threaded).Base, _srcLayer, _dstLayer, _srcLevel, _dstLevel);
         }
     }
 }

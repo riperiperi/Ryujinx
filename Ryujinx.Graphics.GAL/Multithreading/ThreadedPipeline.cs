@@ -1,7 +1,9 @@
 ﻿using Ryujinx.Graphics.GAL.Multithreading.Commands;
+using Ryujinx.Graphics.GAL.Multithreading.Model;
 using Ryujinx.Graphics.GAL.Multithreading.Resources;
 using Ryujinx.Graphics.Shader;
 using System;
+using System.Linq;
 
 namespace Ryujinx.Graphics.GAL.Multithreading
 {
@@ -24,219 +26,267 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             _setUniformBuffers = impl.SetUniformBuffers;
         }
 
+        private TableRef<T> Ref<T>(T reference)
+        {
+            return new TableRef<T>(_renderer, reference);
+        }
+
         public void Barrier()
         {
-            _renderer.QueueCommand(new BarrierCommand());
+            _renderer.New<BarrierCommand>();
+            _renderer.QueueCommand();
         }
 
         public void BeginTransformFeedback(PrimitiveTopology topology)
         {
-            _renderer.QueueCommand(new BeginTransformFeedbackCommand(topology));
+            _renderer.New<BeginTransformFeedbackCommand>().Set(topology);
+            _renderer.QueueCommand();
         }
 
         public void ClearBuffer(BufferHandle destination, int offset, int size, uint value)
         {
-            _renderer.QueueCommand(new ClearBufferCommand(destination, offset, size, value));
+            _renderer.New<ClearBufferCommand>().Set(destination, offset, size, value);
+            _renderer.QueueCommand();
         }
 
         public void ClearRenderTargetColor(int index, uint componentMask, ColorF color)
         {
-            _renderer.QueueCommand(new ClearRenderTargetColorCommand(index, componentMask, color));
+            _renderer.New<ClearRenderTargetColorCommand>().Set(index, componentMask, color);
+            _renderer.QueueCommand();
         }
 
         public void ClearRenderTargetDepthStencil(float depthValue, bool depthMask, int stencilValue, int stencilMask)
         {
-            _renderer.QueueCommand(new ClearRenderTargetDepthStencilCommand(depthValue, depthMask, stencilValue, stencilMask));
+            _renderer.New<ClearRenderTargetDepthStencilCommand>().Set(depthValue, depthMask, stencilValue, stencilMask);
+            _renderer.QueueCommand();
         }
 
         public void CopyBuffer(BufferHandle source, BufferHandle destination, int srcOffset, int dstOffset, int size)
         {
-            _renderer.QueueCommand(new CopyBufferCommand(source, destination, srcOffset, dstOffset, size));
+            _renderer.New<CopyBufferCommand>().Set(source, destination, srcOffset, dstOffset, size);
+            _renderer.QueueCommand();
         }
 
         public void DispatchCompute(int groupsX, int groupsY, int groupsZ)
         {
-            _renderer.QueueCommand(new DispatchComputeCommand(groupsX, groupsY, groupsZ));
+            _renderer.New<DispatchComputeCommand>().Set(groupsX, groupsY, groupsZ);
+            _renderer.QueueCommand();
         }
 
         public void Draw(int vertexCount, int instanceCount, int firstVertex, int firstInstance)
         {
-            _renderer.QueueCommand(new DrawCommand(vertexCount, instanceCount, firstVertex, firstInstance));
+            _renderer.New<DrawCommand>().Set(vertexCount, instanceCount, firstVertex, firstInstance);
+            _renderer.QueueCommand();
         }
 
         public void DrawIndexed(int indexCount, int instanceCount, int firstIndex, int firstVertex, int firstInstance)
         {
-            _renderer.QueueCommand(new DrawIndexedCommand(indexCount, instanceCount, firstIndex, firstVertex, firstInstance));
+            _renderer.New<DrawIndexedCommand>().Set(indexCount, instanceCount, firstIndex, firstVertex, firstInstance);
+            _renderer.QueueCommand();
         }
 
         public void EndHostConditionalRendering()
         {
-            _renderer.QueueCommand(new EndHostConditionalRenderingCommand());
+            _renderer.New<EndHostConditionalRenderingCommand>();
+            _renderer.QueueCommand();
         }
 
         public void EndTransformFeedback()
         {
-            _renderer.QueueCommand(new EndTransformFeedbackCommand());
+            _renderer.New<EndTransformFeedbackCommand>();
+            _renderer.QueueCommand();
         }
 
         public void SetAlphaTest(bool enable, float reference, CompareOp op)
         {
-            _renderer.QueueCommand(new SetAlphaTestCommand(enable, reference, op));
+            _renderer.New<SetAlphaTestCommand>().Set(enable, reference, op);
+            _renderer.QueueCommand();
         }
 
         public void SetBlendState(int index, BlendDescriptor blend)
         {
-            _renderer.QueueCommand(new SetBlendStateCommand(index, blend));
+            _renderer.New<SetBlendStateCommand>().Set(index, blend);
+            _renderer.QueueCommand();
         }
 
         public void SetDepthBias(PolygonModeMask enables, float factor, float units, float clamp)
         {
-            _renderer.QueueCommand(new SetDepthBiasCommand(enables, factor, units, clamp));
+            _renderer.New<SetDepthBiasCommand>().Set(enables, factor, units, clamp);
+            _renderer.QueueCommand();
         }
 
         public void SetDepthClamp(bool clamp)
         {
-            _renderer.QueueCommand(new SetDepthClampCommand(clamp));
+            _renderer.New<SetDepthClampCommand>().Set(clamp);
+            _renderer.QueueCommand();
         }
 
         public void SetDepthMode(DepthMode mode)
         {
-            _renderer.QueueCommand(new SetDepthModeCommand(mode));
+            _renderer.New<SetDepthModeCommand>().Set(mode);
+            _renderer.QueueCommand();
         }
 
         public void SetDepthTest(DepthTestDescriptor depthTest)
         {
-            _renderer.QueueCommand(new SetDepthTestCommand(depthTest));
+            _renderer.New<SetDepthTestCommand>().Set(depthTest);
+            _renderer.QueueCommand();
         }
 
         public void SetFaceCulling(bool enable, Face face)
         {
-            _renderer.QueueCommand(new SetFaceCullingCommand(enable, face));
+            _renderer.New<SetFaceCullingCommand>().Set(enable, face);
+            _renderer.QueueCommand();
         }
 
         public void SetFrontFace(FrontFace frontFace)
         {
-            _renderer.QueueCommand(new SetFrontFaceCommand(frontFace));
+            _renderer.New<SetFrontFaceCommand>().Set(frontFace);
+            _renderer.QueueCommand();
         }
 
         public void SetImage(int binding, ITexture texture, Format imageFormat)
         {
-            _renderer.QueueCommand(new SetImageCommand(binding, texture as ThreadedTexture, imageFormat));
+            _renderer.New<SetImageCommand>().Set(binding, Ref((ThreadedTexture)texture), imageFormat);
+            _renderer.QueueCommand();
         }
 
         public void SetIndexBuffer(BufferRange buffer, IndexType type)
         {
-            _renderer.QueueCommand(new SetIndexBufferCommand(buffer, type));
+            _renderer.New<SetIndexBufferCommand>().Set(buffer, type);
+            _renderer.QueueCommand();
         }
 
         public void SetLogicOpState(bool enable, LogicalOp op)
         {
-            _renderer.QueueCommand(new SetLogicOpStateCommand(enable, op));
+            _renderer.New<SetLogicOpStateCommand>().Set(enable, op);
+            _renderer.QueueCommand();
         }
 
         public void SetPointParameters(float size, bool isProgramPointSize, bool enablePointSprite, Origin origin)
         {
-            _renderer.QueueCommand(new SetPointParametersCommand(size, isProgramPointSize, enablePointSprite, origin));
+            _renderer.New<SetPointParametersCommand>().Set(size, isProgramPointSize, enablePointSprite, origin);
+            _renderer.QueueCommand();
         }
 
         public void SetPrimitiveRestart(bool enable, int index)
         {
-            _renderer.QueueCommand(new SetPrimitiveRestartCommand(enable, index));
+            _renderer.New<SetPrimitiveRestartCommand>().Set(enable, index);
+            _renderer.QueueCommand();
         }
 
         public void SetPrimitiveTopology(PrimitiveTopology topology)
         {
-            _renderer.QueueCommand(new SetPrimitiveTopologyCommand(topology));
+            _renderer.New<SetPrimitiveTopologyCommand>().Set(topology);
+            _renderer.QueueCommand();
         }
 
         public void SetProgram(IProgram program)
         {
-            _renderer.QueueCommand(new SetProgramCommand(program as ThreadedProgram));
+            _renderer.New<SetProgramCommand>().Set(Ref((ThreadedProgram)program));
+            _renderer.QueueCommand();
         }
 
         public void SetRasterizerDiscard(bool discard)
         {
-            _renderer.QueueCommand(new SetRasterizerDiscardCommand(discard));
+            _renderer.New<SetRasterizerDiscardCommand>().Set(discard);
+            _renderer.QueueCommand();
         }
 
         public void SetRenderTargetColorMasks(ReadOnlySpan<uint> componentMask)
         {
-            _renderer.QueueCommand(new SetRenderTargetColorMasksCommand(_renderer.CopySpan(componentMask), componentMask.Length));
+            _renderer.New<SetRenderTargetColorMasksCommand>().Set(Ref(_renderer.CopySpan(componentMask)), componentMask.Length);
+            _renderer.QueueCommand();
         }
 
         public void SetRenderTargets(ITexture[] colors, ITexture depthStencil)
         {
-            _renderer.QueueCommand(new SetRenderTargetsCommand(colors, depthStencil));
+            _renderer.New<SetRenderTargetsCommand>().Set(Ref(colors.Select(color => (ThreadedTexture)color).ToArray()), Ref((ThreadedTexture)depthStencil));
+            _renderer.QueueCommand();
         }
 
         public void SetRenderTargetScale(float scale)
         {
-            _renderer.QueueCommand(new SetRenderTargetScaleCommand(scale));
+            _renderer.New<SetRenderTargetScaleCommand>().Set(scale);
+            _renderer.QueueCommand();
         }
 
         public void SetSampler(int binding, ISampler sampler)
         {
-            _renderer.QueueCommand(new SetSamplerCommand(binding, sampler as ThreadedSampler));
+            _renderer.New<SetSamplerCommand>().Set(binding, Ref((ThreadedSampler)sampler));
+            _renderer.QueueCommand();
         }
 
         public void SetScissor(int index, bool enable, int x, int y, int width, int height)
         {
-            _renderer.QueueCommand(new SetScissorCommand(index, enable, x, y, width, height));
+            _renderer.New<SetScissorCommand>().Set(index, enable, x, y, width, height);
+            _renderer.QueueCommand();
         }
 
         public void SetStencilTest(StencilTestDescriptor stencilTest)
         {
-            _renderer.QueueCommand(new SetStencilTestCommand(stencilTest));
+            _renderer.New<SetStencilTestCommand>().Set(stencilTest);
+            _renderer.QueueCommand();
         }
 
         public void SetStorageBuffers(ReadOnlySpan<BufferRange> buffers)
         {
-            _renderer.QueueCommand(new SetGenericBuffersCommand(_renderer.CopySpan(buffers), buffers.Length, _setStorageBuffers));
+            _renderer.New<SetGenericBuffersCommand>().Set(Ref(_renderer.CopySpan(buffers)), buffers.Length, Ref(_setStorageBuffers));
+            _renderer.QueueCommand();
         }
 
         public void SetTexture(int binding, ITexture texture)
         {
-            _renderer.QueueCommand(new SetTextureCommand(binding, texture as ThreadedTexture));
+            _renderer.New<SetTextureCommand>().Set(binding, Ref((ThreadedTexture)texture));
+            _renderer.QueueCommand();
         }
 
         public void SetTransformFeedbackBuffers(ReadOnlySpan<BufferRange> buffers)
         {
-            _renderer.QueueCommand(new SetGenericBuffersCommand(_renderer.CopySpan(buffers), buffers.Length, _setTransformFeedbackBuffers));
+            _renderer.New<SetGenericBuffersCommand>().Set(Ref(_renderer.CopySpan(buffers)), buffers.Length, Ref(_setTransformFeedbackBuffers));
+            _renderer.QueueCommand();
         }
 
         public void SetUniformBuffers(ReadOnlySpan<BufferRange> buffers)
         {
-            _renderer.QueueCommand(new SetGenericBuffersCommand(_renderer.CopySpan(buffers), buffers.Length, _setUniformBuffers));
+            _renderer.New<SetGenericBuffersCommand>().Set(Ref(_renderer.CopySpan(buffers)), buffers.Length, Ref(_setUniformBuffers));
+            _renderer.QueueCommand();
         }
 
         public void SetUserClipDistance(int index, bool enableClip)
         {
-            _renderer.QueueCommand(new SetUserClipDistanceCommand(index, enableClip));
+            _renderer.New<SetUserClipDistanceCommand>().Set(index, enableClip);
+            _renderer.QueueCommand();
         }
 
         public void SetVertexAttribs(ReadOnlySpan<VertexAttribDescriptor> vertexAttribs)
         {
-            _renderer.QueueCommand(new SetVertexAttribsCommand(_renderer.CopySpan(vertexAttribs), vertexAttribs.Length));
+            _renderer.New<SetVertexAttribsCommand>().Set(Ref(_renderer.CopySpan(vertexAttribs)), vertexAttribs.Length);
+            _renderer.QueueCommand();
         }
 
         public void SetVertexBuffers(ReadOnlySpan<VertexBufferDescriptor> vertexBuffers)
         {
-            _renderer.QueueCommand(new SetVertexBuffersCommand(_renderer.CopySpan(vertexBuffers), vertexBuffers.Length));
+            _renderer.New<SetVertexBuffersCommand>().Set(Ref(_renderer.CopySpan(vertexBuffers)), vertexBuffers.Length);
+            _renderer.QueueCommand();
         }
 
         public void SetViewports(int first, ReadOnlySpan<Viewport> viewports)
         {
-            _renderer.QueueCommand(new SetViewportsCommand(first, _renderer.CopySpan(viewports), viewports.Length));
+            _renderer.New<SetViewportsCommand>().Set(first, Ref(_renderer.CopySpan(viewports)), viewports.Length);
+            _renderer.QueueCommand();
         }
 
         public void TextureBarrier()
         {
-            _renderer.QueueCommand(new TextureBarrierCommand());
+            _renderer.New<TextureBarrierCommand>();
+            _renderer.QueueCommand();
         }
 
         public void TextureBarrierTiled()
         {
-            _renderer.QueueCommand(new TextureBarrierTiledCommand());
+            _renderer.New<TextureBarrierTiledCommand>();
+            _renderer.QueueCommand();
         }
 
         public bool TryHostConditionalRendering(ICounterEvent value, ulong compare, bool isEqual)
@@ -246,18 +296,21 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             {
                 if (compare == 0 && evt.Type == CounterType.SamplesPassed && evt.ClearCounter)
                 {
-                    _renderer.QueueCommand(new TryHostConditionalRenderingCommand(evt, compare, isEqual));
+                    _renderer.New<TryHostConditionalRenderingCommand>().Set(Ref(evt), compare, isEqual);
+                    _renderer.QueueCommand();
                     return true;
                 }
             }
 
-            _renderer.QueueCommand(new TryHostConditionalRenderingFlushCommand(evt, null, isEqual));
+            _renderer.New<TryHostConditionalRenderingFlushCommand>().Set(Ref(evt), Ref<ThreadedCounterEvent>(null), isEqual);
+            _renderer.QueueCommand();
             return false;
         }
 
         public bool TryHostConditionalRendering(ICounterEvent value, ICounterEvent compare, bool isEqual)
         {
-            _renderer.QueueCommand(new TryHostConditionalRenderingFlushCommand(value as ThreadedCounterEvent, compare as ThreadedCounterEvent, isEqual));
+            _renderer.New<TryHostConditionalRenderingFlushCommand>().Set(Ref(value as ThreadedCounterEvent), Ref(compare as ThreadedCounterEvent), isEqual);
+            _renderer.QueueCommand();
             return false;
         }
 
@@ -265,7 +318,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         {
             float[] scalesCopy = new float[scales.Length];
             scales.CopyTo(scalesCopy, 0);
-            _renderer.QueueCommand(new UpdateRenderScaleCommand(stage, scalesCopy, textureCount, imageCount));
+            _renderer.New<UpdateRenderScaleCommand>().Set(stage, Ref(scalesCopy), textureCount, imageCount);
+            _renderer.QueueCommand();
         }
     }
 }

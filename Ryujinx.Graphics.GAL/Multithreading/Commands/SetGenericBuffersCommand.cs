@@ -1,17 +1,19 @@
-﻿using System;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using System;
 using System.Buffers;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
     delegate void SetGenericBuffersDelegate(ReadOnlySpan<BufferRange> buffers);
 
-    class SetGenericBuffersCommand : IGALCommand
+    struct SetGenericBuffersCommand : IGALCommand
     {
-        private IMemoryOwner<BufferRange> _buffers;
+        public CommandType CommandType => CommandType.SetGenericBuffers;
+        private TableRef<IMemoryOwner<BufferRange>> _buffers;
         private int _buffersLength;
-        private SetGenericBuffersDelegate _action;
+        private TableRef<SetGenericBuffersDelegate> _action;
 
-        public SetGenericBuffersCommand(IMemoryOwner<BufferRange> buffers, int buffersLength, SetGenericBuffersDelegate action)
+        public void Set(TableRef<IMemoryOwner<BufferRange>> buffers, int buffersLength, TableRef<SetGenericBuffersDelegate> action)
         {
             _buffers = buffers;
             _buffersLength = buffersLength;
@@ -20,9 +22,11 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            Span<BufferRange> buffers = _buffers.Memory.Span.Slice(0, _buffersLength);
-            _action(threaded.Buffers.MapBufferRanges(buffers));
-            _buffers.Dispose();
+            IMemoryOwner<BufferRange> buffersOwner = _buffers.Get(threaded);
+
+            Span<BufferRange> buffers = buffersOwner.Memory.Span.Slice(0, _buffersLength);
+            _action.Get(threaded)(threaded.Buffers.MapBufferRanges(buffers));
+            buffersOwner.Dispose();
         }
     }
 }

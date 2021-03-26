@@ -1,10 +1,11 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetRenderTargetScaleCommand : IGALCommand
+    struct SetRenderTargetScaleCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetRenderTargetScale;
         private float _scale;
 
-        public SetRenderTargetScaleCommand(float scale)
+        public void Set(float scale)
         {
             _scale = scale;
         }

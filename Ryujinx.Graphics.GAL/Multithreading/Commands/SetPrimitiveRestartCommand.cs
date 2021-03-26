@@ -1,11 +1,12 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetPrimitiveRestartCommand : IGALCommand
+    struct SetPrimitiveRestartCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetPrimitiveRestart;
         private bool _enable;
         private int _index;
 
-        public SetPrimitiveRestartCommand(bool enable, int index)
+        public void Set(bool enable, int index)
         {
             _enable = enable;
             _index = index;

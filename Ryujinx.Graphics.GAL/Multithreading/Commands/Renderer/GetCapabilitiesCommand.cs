@@ -1,12 +1,20 @@
-﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+
+namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 {
-    class GetCapabilitiesCommand : IGALCommand
+    struct GetCapabilitiesCommand : IGALCommand
     {
-        public Capabilities Result;
+        public CommandType CommandType => CommandType.GetCapabilities;
+        private TableRef<ResultBox<Capabilities>> _result;
+
+        public void Set(TableRef<ResultBox<Capabilities>> result)
+        {
+            _result = result;
+        }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            Result = renderer.GetCapabilities();
+            _result.Get(threaded).Result = renderer.GetCapabilities();
         }
     }
 }

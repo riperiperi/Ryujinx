@@ -1,19 +1,21 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetProgramCommand : IGALCommand
+    struct SetProgramCommand : IGALCommand
     {
-        private ThreadedProgram _program;
+        public CommandType CommandType => CommandType.SetProgram;
+        private TableRef<ThreadedProgram> _program;
 
-        public SetProgramCommand(ThreadedProgram program)
+        public void Set(TableRef<ThreadedProgram> program)
         {
             _program = program;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            renderer.Pipeline.SetProgram(_program.Base);
+            renderer.Pipeline.SetProgram(_program.Get(threaded).Base);
         }
     }
 }

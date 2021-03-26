@@ -1,4 +1,5 @@
 ﻿using Ryujinx.Graphics.GAL.Multithreading.Commands.Texture;
+using Ryujinx.Graphics.GAL.Multithreading.Model;
 using System;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Resources
@@ -25,23 +26,31 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Resources
             ScaleFactor = scale;
         }
 
+        private TableRef<T> Ref<T>(T reference)
+        {
+            return new TableRef<T>(_renderer, reference);
+        }
+
         public void CopyTo(ITexture destination, int firstLayer, int firstLevel)
         {
-            _renderer.QueueCommand(new TextureCopyToCommand(this, destination as ThreadedTexture, firstLayer, firstLevel));
+            _renderer.New<TextureCopyToCommand>().Set(Ref(this), Ref((ThreadedTexture)destination), firstLayer, firstLevel);
+            _renderer.QueueCommand();
         }
 
         public void CopyTo(ITexture destination, int srcLayer, int dstLayer, int srcLevel, int dstLevel)
         {
-            _renderer.QueueCommand(new TextureCopyToSliceCommand(this, destination as ThreadedTexture, srcLayer, dstLayer, srcLevel, dstLevel));
+            _renderer.New<TextureCopyToSliceCommand>().Set(Ref(this), Ref((ThreadedTexture)destination), srcLayer, dstLayer, srcLevel, dstLevel);
+            _renderer.QueueCommand();
         }
 
         public void CopyTo(ITexture destination, Extents2D srcRegion, Extents2D dstRegion, bool linearFilter)
         {
-            ThreadedTexture dest = destination as ThreadedTexture;
+            ThreadedTexture dest = (ThreadedTexture)destination;
 
             if (_renderer.IsGpuThread())
             {
-                _renderer.QueueCommand(new TextureCopyToScaledCommand(this, dest, srcRegion, dstRegion, linearFilter));
+                _renderer.New<TextureCopyToScaledCommand>().Set(Ref(this), Ref(dest), srcRegion, dstRegion, linearFilter);
+                _renderer.QueueCommand();
             }
             else
             {
@@ -56,7 +65,8 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Resources
         public ITexture CreateView(TextureCreateInfo info, int firstLayer, int firstLevel)
         {
             ThreadedTexture newTex = new ThreadedTexture(_renderer, info, ScaleFactor);
-            _renderer.QueueCommand(new TextureCreateViewCommand(this, newTex, info, firstLayer, firstLevel));
+            _renderer.New<TextureCreateViewCommand>().Set(Ref(this), Ref(newTex), info, firstLayer, firstLevel);
+            _renderer.QueueCommand();
 
             return newTex;
         }
@@ -65,10 +75,11 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Resources
         {
             if (_renderer.IsGpuThread())
             {
-                var cmd = new TextureGetDataCommand(this);
-                _renderer.InvokeCommand(cmd);
+                ResultBox<byte[]> box = new ResultBox<byte[]>();
+                _renderer.New<TextureGetDataCommand>().Set(Ref(this), Ref(box));
+                _renderer.InvokeCommand();
 
-                return cmd.Result;
+                return box.Result;
             }
             else
             {
@@ -80,22 +91,26 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Resources
 
         public void SetData(ReadOnlySpan<byte> data)
         {
-            _renderer.QueueCommand(new TextureSetDataCommand(this, data));
+            _renderer.New<TextureSetDataCommand>().Set(Ref(this), Ref(data.ToArray()));
+            _renderer.QueueCommand();
         }
 
         public void SetData(ReadOnlySpan<byte> data, int layer, int level)
         {
-            _renderer.QueueCommand(new TextureSetDataSliceCommand(this, data, layer, level));
+            _renderer.New<TextureSetDataSliceCommand>().Set(Ref(this), Ref(data.ToArray()), layer, level);
+            _renderer.QueueCommand();
         }
 
         public void SetStorage(BufferRange buffer)
         {
-            _renderer.QueueCommand(new TextureSetStorageCommand(this, buffer));
+            _renderer.New<TextureSetStorageCommand>().Set(Ref(this), buffer);
+            _renderer.QueueCommand();
         }
 
         public void Release()
         {
-            _renderer.QueueCommand(new TextureReleaseCommand(this));
+            _renderer.New<TextureReleaseCommand>().Set(Ref(this));
+            _renderer.QueueCommand();
         }
     }
 }

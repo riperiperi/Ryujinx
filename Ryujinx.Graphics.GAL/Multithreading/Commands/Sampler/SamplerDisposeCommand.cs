@@ -1,19 +1,21 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Sampler
 {
-    class SamplerDisposeCommand : IGALCommand
+    struct SamplerDisposeCommand : IGALCommand
     {
-        private ThreadedSampler _sampler;
+        public CommandType CommandType => CommandType.SamplerDispose;
+        private TableRef<ThreadedSampler> _sampler;
 
-        public SamplerDisposeCommand(ThreadedSampler sampler)
+        public void Set(TableRef<ThreadedSampler> sampler)
         {
             _sampler = sampler;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _sampler.Base.Dispose();
+            _sampler.Get(threaded).Base.Dispose();
         }
     }
 }

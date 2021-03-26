@@ -85,7 +85,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
 
                 if (counter?.Invalid != true)
                 {
-                    _context.MemoryManager.Write(gpuVa, counterData);
+                    _context.MemoryManager.WriteUntracked(gpuVa, MemoryMarshal.Cast<CounterData, byte>(MemoryMarshal.CreateSpan(ref counterData, 1)));
                 }
             };
 

@@ -1,10 +1,11 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetDepthTestCommand : IGALCommand
+    struct SetDepthTestCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetDepthTest;
         private DepthTestDescriptor _depthTest;
 
-        public SetDepthTestCommand(DepthTestDescriptor depthTest)
+        public void Set(DepthTestDescriptor depthTest)
         {
             _depthTest = depthTest;
         }

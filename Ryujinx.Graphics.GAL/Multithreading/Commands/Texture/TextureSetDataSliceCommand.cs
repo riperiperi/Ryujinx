@@ -1,26 +1,29 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 using System;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Texture
 {
-    class TextureSetDataSliceCommand : IGALCommand
+    struct TextureSetDataSliceCommand : IGALCommand
     {
-        private ThreadedTexture _texture;
-        private byte[] _data;
+        public CommandType CommandType => CommandType.TextureSetDataSlice;
+        private TableRef<ThreadedTexture> _texture;
+        private TableRef<byte[]> _data;
         private int _layer;
         private int _level;
 
-        public TextureSetDataSliceCommand(ThreadedTexture texture, ReadOnlySpan<byte> data, int layer, int level)
+        public void Set(TableRef<ThreadedTexture> texture, TableRef<byte[]> data, int layer, int level)
         {
             _texture = texture;
-            _data = data.ToArray();
+            _data = data;
             _layer = layer;
             _level = level;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _texture.Base.SetData(new ReadOnlySpan<byte>(_data), _layer, _level);
+            ThreadedTexture texture = _texture.Get(threaded);
+            texture.Base.SetData(new ReadOnlySpan<byte>(_data.Get(threaded)), _layer, _level);
         }
     }
 }

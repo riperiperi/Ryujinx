@@ -1,12 +1,13 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class ClearRenderTargetColorCommand : IGALCommand
+    struct ClearRenderTargetColorCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.ClearRenderTargetColor;
         private int _index;
         private uint _componentMask;
         private ColorF _color;
 
-        public ClearRenderTargetColorCommand(int index, uint componentMask, ColorF color)
+        public void Set(int index, uint componentMask, ColorF color)
         {
             _index = index;
             _componentMask = componentMask;

@@ -1,12 +1,13 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetAlphaTestCommand : IGALCommand
+    struct SetAlphaTestCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetAlphaTest;
         private bool _enable;
         private float _reference;
         private CompareOp _op;
 
-        public SetAlphaTestCommand(bool enable, float reference, CompareOp op)
+        public void Set(bool enable, float reference, CompareOp op)
         {
             _enable = enable;
             _reference = reference;

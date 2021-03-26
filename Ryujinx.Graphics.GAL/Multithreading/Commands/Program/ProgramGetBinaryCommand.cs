@@ -1,21 +1,25 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Program
 {
-    class ProgramGetBinaryCommand : IGALCommand
+    struct ProgramGetBinaryCommand : IGALCommand
     {
-        private ThreadedProgram _program;
+        public CommandType CommandType => CommandType.ProgramGetBinary;
+        private TableRef<ThreadedProgram> _program;
+        private TableRef<ResultBox<byte[]>> _result;
 
-        public byte[] Result;
-
-        public ProgramGetBinaryCommand(ThreadedProgram program)
+        public void Set(TableRef<ThreadedProgram> program, TableRef<ResultBox<byte[]>> result)
         {
             _program = program;
+            _result = result;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            Result = _program.Base.GetBinary();
+            byte[] result = _program.Get(threaded).Base.GetBinary();
+
+            _result.Get(threaded).Result = result;
         }
     }
 }

@@ -1,13 +1,15 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetTextureCommand : IGALCommand
+    struct SetTextureCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetTexture;
         private int _binding;
-        private ThreadedTexture _texture;
+        private TableRef<ThreadedTexture> _texture;
 
-        public SetTextureCommand(int binding, ThreadedTexture texture)
+        public void Set(int binding, TableRef<ThreadedTexture> texture)
         {
             _binding = binding;
             _texture = texture;
@@ -15,7 +17,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            renderer.Pipeline.SetTexture(_binding, _texture?.Base);
+            renderer.Pipeline.SetTexture(_binding, _texture.Get(threaded)?.Base);
         }
     }
 }

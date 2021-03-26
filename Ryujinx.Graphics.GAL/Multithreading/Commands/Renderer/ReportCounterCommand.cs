@@ -1,15 +1,17 @@
-﻿using Ryujinx.Graphics.GAL.Multithreading.Resources;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.GAL.Multithreading.Resources;
 using System;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 {
-    class ReportCounterCommand : IGALCommand
+    struct ReportCounterCommand : IGALCommand
     {
-        private ThreadedCounterEvent _event;
+        public CommandType CommandType => CommandType.ReportCounter;
+        private TableRef<ThreadedCounterEvent> _event;
         private CounterType _type;
-        private EventHandler<ulong> _resultHandler;
+        private TableRef<EventHandler<ulong>> _resultHandler;
 
-        public ReportCounterCommand(ThreadedCounterEvent evt, CounterType type, EventHandler<ulong> resultHandler)
+        public void Set(TableRef<ThreadedCounterEvent> evt, CounterType type, TableRef<EventHandler<ulong>> resultHandler)
         {
             _event = evt;
             _type = type;
@@ -18,7 +20,9 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            _event.Base = renderer.ReportCounter(_type, _resultHandler);
+            ThreadedCounterEvent evt = _event.Get(threaded);
+
+            evt.Base = renderer.ReportCounter(_type, _resultHandler.Get(threaded));
         }
     }
 }

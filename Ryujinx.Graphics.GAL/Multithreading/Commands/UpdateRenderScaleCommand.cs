@@ -1,15 +1,17 @@
-﻿using Ryujinx.Graphics.Shader;
+﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
+using Ryujinx.Graphics.Shader;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class UpdateRenderScaleCommand : IGALCommand
+    struct UpdateRenderScaleCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.UpdateRenderScale;
         private ShaderStage _stage;
-        private float[] _scales;
+        private TableRef<float[]> _scales;
         private int _textureCount;
         private int _imageCount;
 
-        public UpdateRenderScaleCommand(ShaderStage stage, float[] scales, int textureCount, int imageCount)
+        public void Set(ShaderStage stage, TableRef<float[]> scales, int textureCount, int imageCount)
         {
             _stage = stage;
             _scales = scales;
@@ -19,7 +21,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            renderer.Pipeline.UpdateRenderScale(_stage, _scales, _textureCount, _imageCount);
+            renderer.Pipeline.UpdateRenderScale(_stage, _scales.Get(threaded), _textureCount, _imageCount);
         }
     }
 }

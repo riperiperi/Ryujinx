@@ -3,12 +3,13 @@ using Ryujinx.Graphics.Shader;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 {
-    class CreateBufferCommand : IGALCommand
+    struct CreateBufferCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.CreateBuffer;
         private BufferHandle _threadedHandle;
         private int _size;
 
-        public CreateBufferCommand(BufferHandle threadedHandle, int size)
+        public void Set(BufferHandle threadedHandle, int size)
         {
             _threadedHandle = threadedHandle;
             _size = size;

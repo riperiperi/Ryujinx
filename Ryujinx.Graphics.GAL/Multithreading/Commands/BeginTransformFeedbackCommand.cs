@@ -1,10 +1,11 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class BeginTransformFeedbackCommand : IGALCommand
+    struct BeginTransformFeedbackCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.BeginTransformFeedback;
         private PrimitiveTopology _topology;
 
-        public BeginTransformFeedbackCommand(PrimitiveTopology topology)
+        public void Set(PrimitiveTopology topology)
         {
             _topology = topology;
         }

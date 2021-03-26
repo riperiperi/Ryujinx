@@ -1,10 +1,11 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetStencilTestCommand : IGALCommand
+    struct SetStencilTestCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetStencilTest;
         private StencilTestDescriptor _stencilTest;
 
-        public SetStencilTestCommand(StencilTestDescriptor stencilTest)
+        public void Set(StencilTestDescriptor stencilTest)
         {
             _stencilTest = stencilTest;
         }

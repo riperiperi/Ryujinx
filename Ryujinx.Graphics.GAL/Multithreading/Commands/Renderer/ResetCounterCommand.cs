@@ -1,10 +1,11 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer
 {
-    class ResetCounterCommand : IGALCommand
+    struct ResetCounterCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.ResetCounter;
         private CounterType _type;
 
-        public ResetCounterCommand(CounterType type)
+        public void Set(CounterType type)
         {
             _type = type;
         }

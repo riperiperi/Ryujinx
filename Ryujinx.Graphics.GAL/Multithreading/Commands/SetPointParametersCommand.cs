@@ -1,13 +1,14 @@
 ﻿namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 {
-    class SetPointParametersCommand : IGALCommand
+    struct SetPointParametersCommand : IGALCommand
     {
+        public CommandType CommandType => CommandType.SetPointParameters;
         private float _size;
         private bool _isProgramPointSize;
         private bool _enablePointSprite;
         private Origin _origin;
 
-        public SetPointParametersCommand(float size, bool isProgramPointSize, bool enablePointSprite, Origin origin)
+        public void Set(float size, bool isProgramPointSize, bool enablePointSprite, Origin origin)
         {
             _size = size;
             _isProgramPointSize = isProgramPointSize;
