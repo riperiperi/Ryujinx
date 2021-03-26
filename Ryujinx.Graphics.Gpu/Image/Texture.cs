@@ -1014,6 +1014,11 @@ namespace Ryujinx.Graphics.Gpu.Image
             result = TextureCompatibility.PropagateViewCompatibility(result, TextureCompatibility.ViewTargetCompatible(Info, info));
             result = TextureCompatibility.PropagateViewCompatibility(result, TextureCompatibility.ViewSubImagesInBounds(Info, info, firstLayer, firstLevel));
 
+            if (result == TextureViewCompatibility.Full && Info.FormatInfo.Format != info.FormatInfo.Format && !_context.Capabilities.SupportsMismatchingViewFormat)
+            {
+                result = TextureViewCompatibility.CopyOnly;
+            }
+
             return (Info.SamplesInX == info.SamplesInX &&
                     Info.SamplesInY == info.SamplesInY) ? result : TextureViewCompatibility.Incompatible;
         }
