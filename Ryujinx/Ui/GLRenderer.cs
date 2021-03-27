@@ -438,11 +438,11 @@ namespace Ryujinx.Ui
             GL.Clear(ClearBufferMask.ColorBufferBit);
             SwapBuffers();
 
-            _device.Gpu.InitializeShaderCache();
-            Translator.IsReadyForTranslation.Set();
-
             _device.Gpu.Renderer.RunLoop(() =>
             {
+                _device.Gpu.InitializeShaderCache();
+                Translator.IsReadyForTranslation.Set();
+
                 while (_isActive)
                 {
                     if (_isStopped)
