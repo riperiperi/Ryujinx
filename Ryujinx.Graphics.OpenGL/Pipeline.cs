@@ -1177,7 +1177,7 @@ namespace Ryujinx.Graphics.OpenGL
             }
         }
 
-        public void UpdateRenderScale(ShaderStage stage, float[] scales, int textureCount, int imageCount)
+        public void UpdateRenderScale(ShaderStage stage, ReadOnlySpan<float> scales, int textureCount, int imageCount)
         {
             if (_program != null)
             {
@@ -1186,7 +1186,7 @@ namespace Ryujinx.Graphics.OpenGL
                     case ShaderStage.Fragment:
                         if (_program.FragmentRenderScaleUniform != -1)
                         {
-                            Array.Copy(scales, 0, _fpRenderScale, 1, textureCount + imageCount);
+                            scales.CopyTo(new Span<float>(_fpRenderScale, 1, textureCount + imageCount));
                             GL.Uniform1(_program.FragmentRenderScaleUniform, 1 + textureCount + imageCount, _fpRenderScale);
                         }
                         break;
@@ -1194,7 +1194,7 @@ namespace Ryujinx.Graphics.OpenGL
                     case ShaderStage.Compute:
                         if (_program.ComputeRenderScaleUniform != -1)
                         {
-                            Array.Copy(scales, 0, _cpRenderScale, 0, textureCount + imageCount);
+                            scales.CopyTo(new Span<float>(_cpRenderScale, 0, textureCount + imageCount));
                             GL.Uniform1(_program.ComputeRenderScaleUniform, textureCount + imageCount, _cpRenderScale);
                         }
                         break;

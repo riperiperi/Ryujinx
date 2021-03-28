@@ -7,11 +7,11 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
     {
         public CommandType CommandType => CommandType.UpdateRenderScale;
         private ShaderStage _stage;
-        private TableRef<float[]> _scales;
+        private SpanRef<float> _scales;
         private int _textureCount;
         private int _imageCount;
 
-        public void Set(ShaderStage stage, TableRef<float[]> scales, int textureCount, int imageCount)
+        public void Set(ShaderStage stage, SpanRef<float> scales, int textureCount, int imageCount)
         {
             _stage = stage;
             _scales = scales;
@@ -22,6 +22,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
             renderer.Pipeline.UpdateRenderScale(_stage, _scales.Get(threaded), _textureCount, _imageCount);
+            _scales.Dispose(threaded);
         }
     }
 }
