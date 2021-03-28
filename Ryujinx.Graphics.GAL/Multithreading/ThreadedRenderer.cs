@@ -225,9 +225,9 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             return Thread.CurrentThread == _gpuThread;
         }
 
-        public void BackgroundContextAction(Action action)
+        public void BackgroundContextAction(Action action, bool alwaysBackground = false)
         {
-            if (IsGpuThread())
+            if (IsGpuThread() && !alwaysBackground)
             {
                 // The action must be performed on the render thread.
                 New<ActionCommand>().Set(Ref(action));
@@ -235,7 +235,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             }
             else
             {
-                _baseRenderer.BackgroundContextAction(action);
+                _baseRenderer.BackgroundContextAction(action, true);
             }
         }
 

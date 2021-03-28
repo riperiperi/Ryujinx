@@ -373,7 +373,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
                     (address, size) = PageAlign(address, size);
                     ranges.WaitForAndGetRanges(address, size, Flush);
                 }
-            });
+            }, true);
         }
 
         /// <summary>

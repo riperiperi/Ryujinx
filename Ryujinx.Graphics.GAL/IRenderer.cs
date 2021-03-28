@@ -10,7 +10,7 @@ namespace Ryujinx.Graphics.GAL
 
         IWindow Window { get; }
 
-        void BackgroundContextAction(Action action);
+        void BackgroundContextAction(Action action, bool alwaysBackground = false);
 
         IShader CompileShader(ShaderStage stage, string code);
 

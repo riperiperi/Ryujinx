@@ -148,8 +148,10 @@ namespace Ryujinx.Graphics.OpenGL
             _counters.QueueReset(type);
         }
 
-        public void BackgroundContextAction(Action action)
+        public void BackgroundContextAction(Action action, bool alwaysBackground = false)
         {
+            // alwaysBackground is ignored, since we cannot switch from the current context.
+
             if (GraphicsContext.CurrentContext != null)
             {
                 action(); // We have a context already - use that (assuming it is the main one).
