@@ -195,7 +195,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         public void SetRenderTargetColorMasks(ReadOnlySpan<uint> componentMask)
         {
-            _renderer.New<SetRenderTargetColorMasksCommand>().Set(Ref(_renderer.CopySpan(componentMask)), componentMask.Length);
+            _renderer.New<SetRenderTargetColorMasksCommand>().Set(_renderer.CopySpan(componentMask));
             _renderer.QueueCommand();
         }
 
@@ -231,7 +231,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         public void SetStorageBuffers(ReadOnlySpan<BufferRange> buffers)
         {
-            _renderer.New<SetGenericBuffersCommand>().Set(Ref(_renderer.CopySpan(buffers)), buffers.Length, Ref(_setStorageBuffers));
+            _renderer.New<SetGenericBuffersCommand>().Set(_renderer.CopySpan(buffers), Ref(_setStorageBuffers));
             _renderer.QueueCommand();
         }
 
@@ -243,13 +243,13 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         public void SetTransformFeedbackBuffers(ReadOnlySpan<BufferRange> buffers)
         {
-            _renderer.New<SetGenericBuffersCommand>().Set(Ref(_renderer.CopySpan(buffers)), buffers.Length, Ref(_setTransformFeedbackBuffers));
+            _renderer.New<SetGenericBuffersCommand>().Set(_renderer.CopySpan(buffers), Ref(_setTransformFeedbackBuffers));
             _renderer.QueueCommand();
         }
 
         public void SetUniformBuffers(ReadOnlySpan<BufferRange> buffers)
         {
-            _renderer.New<SetGenericBuffersCommand>().Set(Ref(_renderer.CopySpan(buffers)), buffers.Length, Ref(_setUniformBuffers));
+            _renderer.New<SetGenericBuffersCommand>().Set(_renderer.CopySpan(buffers), Ref(_setUniformBuffers));
             _renderer.QueueCommand();
         }
 
@@ -261,19 +261,19 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         public void SetVertexAttribs(ReadOnlySpan<VertexAttribDescriptor> vertexAttribs)
         {
-            _renderer.New<SetVertexAttribsCommand>().Set(Ref(_renderer.CopySpan(vertexAttribs)), vertexAttribs.Length);
+            _renderer.New<SetVertexAttribsCommand>().Set(_renderer.CopySpan(vertexAttribs));
             _renderer.QueueCommand();
         }
 
         public void SetVertexBuffers(ReadOnlySpan<VertexBufferDescriptor> vertexBuffers)
         {
-            _renderer.New<SetVertexBuffersCommand>().Set(Ref(_renderer.CopySpan(vertexBuffers)), vertexBuffers.Length);
+            _renderer.New<SetVertexBuffersCommand>().Set(_renderer.CopySpan(vertexBuffers));
             _renderer.QueueCommand();
         }
 
         public void SetViewports(int first, ReadOnlySpan<Viewport> viewports)
         {
-            _renderer.New<SetViewportsCommand>().Set(first, Ref(_renderer.CopySpan(viewports)), viewports.Length);
+            _renderer.New<SetViewportsCommand>().Set(first, _renderer.CopySpan(viewports));
             _renderer.QueueCommand();
         }
 

@@ -1,6 +1,5 @@
 ﻿using Ryujinx.Graphics.GAL.Multithreading.Model;
 using System;
-using System.Buffers;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Buffer
 {
@@ -9,24 +8,20 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Buffer
         public CommandType CommandType => CommandType.BufferSetData;
         private BufferHandle _buffer;
         private int _offset;
-        private TableRef<ISpanRef> _data;
-        private int _dataLength;
+        private SpanRef<byte> _data;
 
-        public void Set(BufferHandle buffer, int offset, TableRef<ISpanRef> data, int dataLength)
+        public void Set(BufferHandle buffer, int offset, SpanRef<byte> data)
         {
             _buffer = buffer;
             _offset = offset;
             _data = data;
-            _dataLength = dataLength;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            ISpanRef owner = _data.Get(threaded);
-
-            ReadOnlySpan<byte> data = owner.Get<byte>(_dataLength);
+            ReadOnlySpan<byte> data = _data.Get(threaded);
             renderer.SetBufferData(threaded.Buffers.MapBuffer(_buffer), _offset, data);
-            owner.Dispose<byte>(_dataLength);
+            _data.Dispose(threaded);
         }
     }
 }

@@ -5,36 +5,14 @@ using System.Threading;
 
 namespace Ryujinx.Graphics.GAL.Multithreading.Model
 {
-    interface ISpanRef {
-        Span<T> Get<T>(int length) where T : unmanaged;
-        void Dispose<T>(int length) where T : unmanaged;
-    }
-
-    class ObjectSpanReference : ISpanRef
-    {
-        private byte[] _data;
-        
-        public ObjectSpanReference(ReadOnlySpan<byte> data)
-        {
-            _data = data.ToArray();
-        }
-
-        public Span<T> Get<T>(int size) where T : unmanaged
-        {
-            return MemoryMarshal.Cast<byte, T>(new Span<byte>(_data));
-        }
-
-        public void Dispose<T>(int size) where T : unmanaged
-        {
-
-        }
-    }
-
     /// <summary>
-    /// Resources are disposed in the order they come in, so no holes are created in the used area.
+    /// A memory pool for passing through Span<T> resources with one producer and consumer.
+    /// Data is copied on creation to part of the pool, then that region is reserved until it is disposed by the consumer.
+    /// Similar to the command queue, this pool assumes that data is created and disposed in the same order.
     /// </summary>
-    class CircularSpanPool : ISpanRef
+    class CircularSpanPool
     {
+        private ThreadedRenderer _renderer;
         private byte[] _pool;
         private int _size;
 
@@ -42,13 +20,14 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Model
         private int _producerSkipPosition = -1;
         private int _consumerPtr;
 
-        public CircularSpanPool(int size)
+        public CircularSpanPool(ThreadedRenderer renderer, int size)
         {
+            _renderer = renderer;
             _size = size;
             _pool = new byte[size];
         }
 
-        public ISpanRef Produce<T>(ReadOnlySpan<T> data) where T : unmanaged
+        public SpanRef<T> Insert<T>(ReadOnlySpan<T> data) where T : unmanaged
         {
             int size = data.Length * Unsafe.SizeOf<T>();
 
@@ -73,7 +52,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Model
                 // - A wraparound would happen but the consumer would be covered by it.
                 // - The producer would catch up to the consumer as a result.
 
-                return new ObjectSpanReference(MemoryMarshal.Cast<T, byte>(data));
+                return new SpanRef<T>(_renderer, data.ToArray());
             }
 
             data.CopyTo(MemoryMarshal.Cast<byte, T>(new Span<byte>(_pool).Slice(index, size)));
@@ -85,7 +64,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Model
 
             _producerPtr = index + size;
 
-            return this;
+            return new SpanRef<T>(data.Length);
         }
 
         public Span<T> Get<T>(int length) where T : unmanaged

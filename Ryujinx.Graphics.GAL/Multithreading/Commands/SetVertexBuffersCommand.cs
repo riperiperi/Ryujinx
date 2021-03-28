@@ -7,22 +7,18 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
     struct SetVertexBuffersCommand : IGALCommand
     {
         public CommandType CommandType => CommandType.SetVertexBuffers;
-        private TableRef<ISpanRef> _vertexBuffers;
-        private int _vertexBuffersLength;
+        private SpanRef<VertexBufferDescriptor> _vertexBuffers;
 
-        public void Set(TableRef<ISpanRef> vertexBuffers, int vertexBuffersLength)
+        public void Set(SpanRef<VertexBufferDescriptor> vertexBuffers)
         {
             _vertexBuffers = vertexBuffers;
-            _vertexBuffersLength = vertexBuffersLength;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            ISpanRef vertexOwner = _vertexBuffers.Get(threaded);
-
-            Span<VertexBufferDescriptor> vertexBuffers = vertexOwner.Get<VertexBufferDescriptor>(_vertexBuffersLength);
+            Span<VertexBufferDescriptor> vertexBuffers = _vertexBuffers.Get(threaded);
             renderer.Pipeline.SetVertexBuffers(threaded.Buffers.MapBufferRanges(vertexBuffers));
-            vertexOwner.Dispose<VertexBufferDescriptor>(_vertexBuffersLength);
+            _vertexBuffers.Dispose(threaded);
         }
     }
 }

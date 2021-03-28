@@ -36,7 +36,6 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         private AutoResetEvent _frameComplete = new AutoResetEvent(true);
 
         private ManualResetEventSlim _galWorkAvailable;
-        private ConcurrentQueue<IGALCommand> _galQueue;
         private CircularSpanPool _spanPool;
 
         private ManualResetEventSlim _invokeRun;
@@ -75,9 +74,9 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             Sync = new SyncMap();
 
             _galWorkAvailable = new ManualResetEventSlim(false);
-            _galQueue = new ConcurrentQueue<IGALCommand>();
             _invokeRun = new ManualResetEventSlim();
-            _spanPool = new CircularSpanPool(SpanPoolBytes);
+            _spanPool = new CircularSpanPool(this, SpanPoolBytes);
+            SpanPool = _spanPool;
 
             _commandQueue = new byte[ElementSize * QueueCount];
             _refQueue = new object[MaxRefsPerCommand * QueueCount];
@@ -132,9 +131,9 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             }
         }
 
-        internal ISpanRef CopySpan<T>(ReadOnlySpan<T> data) where T : unmanaged
+        internal SpanRef<T> CopySpan<T>(ReadOnlySpan<T> data) where T : unmanaged
         {
-            return _spanPool.Produce(data);
+            return _spanPool.Insert(data);
         }
 
         private TableRef<T> Ref<T>(T reference)
@@ -380,7 +379,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         public void SetBufferData(BufferHandle buffer, int offset, ReadOnlySpan<byte> data)
         {
-            New<BufferSetDataCommand>().Set(buffer, offset, Ref(CopySpan(data)), data.Length);
+            New<BufferSetDataCommand>().Set(buffer, offset, CopySpan(data));
             QueueCommand();
         }
 

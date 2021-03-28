@@ -8,23 +8,19 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
     {
         public CommandType CommandType => CommandType.SetViewports;
         private int _first;
-        private TableRef<ISpanRef> _viewports;
-        private int _viewportsLength;
+        private SpanRef<Viewport> _viewports;
 
-        public void Set(int first, TableRef<ISpanRef> viewports, int viewportsLength)
+        public void Set(int first, SpanRef<Viewport> viewports)
         {
             _first = first;
             _viewports = viewports;
-            _viewportsLength = viewportsLength;
         }
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            ISpanRef viewportOwner = _viewports.Get(threaded);
-
-            ReadOnlySpan<Viewport> viewports = viewportOwner.Get<Viewport>(_viewportsLength);
+            ReadOnlySpan<Viewport> viewports = _viewports.Get(threaded);
             renderer.Pipeline.SetViewports(_first, viewports);
-            viewportOwner.Dispose<Viewport>(_viewportsLength);
+            _viewports.Dispose(threaded);
         }
     }
 }
