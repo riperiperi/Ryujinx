@@ -9,10 +9,10 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Buffer
         public CommandType CommandType => CommandType.BufferSetData;
         private BufferHandle _buffer;
         private int _offset;
-        private TableRef<IMemoryOwner<byte>> _data;
+        private TableRef<ISpanRef> _data;
         private int _dataLength;
 
-        public void Set(BufferHandle buffer, int offset, TableRef<IMemoryOwner<byte>> data, int dataLength)
+        public void Set(BufferHandle buffer, int offset, TableRef<ISpanRef> data, int dataLength)
         {
             _buffer = buffer;
             _offset = offset;
@@ -22,11 +22,11 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands.Buffer
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            IMemoryOwner<byte> owner = _data.Get(threaded);
+            ISpanRef owner = _data.Get(threaded);
 
-            ReadOnlySpan<byte> data = owner.Memory.Span.Slice(0, _dataLength);
+            ReadOnlySpan<byte> data = owner.Get<byte>(_dataLength);
             renderer.SetBufferData(threaded.Buffers.MapBuffer(_buffer), _offset, data);
-            owner.Dispose();
+            owner.Dispose<byte>(_dataLength);
         }
     }
 }

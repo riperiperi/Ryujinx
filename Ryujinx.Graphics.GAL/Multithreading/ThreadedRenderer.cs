@@ -23,6 +23,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
     /// </summary>
     public class ThreadedRenderer : IRenderer
     {
+        private const int SpanPoolBytes = 4 * 1024 * 1024;
         private const int MaxRefsPerCommand = 3;
         private const int ElementSize = 128;
         private const int QueueCount = 10000;
@@ -36,6 +37,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         private ManualResetEventSlim _galWorkAvailable;
         private ConcurrentQueue<IGALCommand> _galQueue;
+        private CircularSpanPool _spanPool;
 
         private ManualResetEventSlim _invokeRun;
 
@@ -56,6 +58,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
         internal BufferMap Buffers { get; }
         internal SyncMap Sync { get; }
+        internal CircularSpanPool SpanPool { get; }
 
         public IPipeline Pipeline { get; }
         public IWindow Window { get; }
@@ -74,6 +77,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             _galWorkAvailable = new ManualResetEventSlim(false);
             _galQueue = new ConcurrentQueue<IGALCommand>();
             _invokeRun = new ManualResetEventSlim();
+            _spanPool = new CircularSpanPool(SpanPoolBytes);
 
             _commandQueue = new byte[ElementSize * QueueCount];
             _refQueue = new object[MaxRefsPerCommand * QueueCount];
@@ -128,13 +132,9 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             }
         }
 
-        internal IMemoryOwner<T> CopySpan<T>(ReadOnlySpan<T> data) where T : unmanaged
+        internal ISpanRef CopySpan<T>(ReadOnlySpan<T> data) where T : unmanaged
         {
-            IMemoryOwner<T> memory = MemoryPool<T>.Shared.Rent(data.Length);
-
-            data.CopyTo(memory.Memory.Span);
-
-            return memory;
+            return _spanPool.Produce(data);
         }
 
         private TableRef<T> Ref<T>(T reference)

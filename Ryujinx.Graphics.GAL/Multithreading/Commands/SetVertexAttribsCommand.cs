@@ -7,10 +7,10 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
     struct SetVertexAttribsCommand : IGALCommand
     {
         public CommandType CommandType => CommandType.SetVertexAttribs;
-        private TableRef<IMemoryOwner<VertexAttribDescriptor>> _vertexAttribs;
+        private TableRef<ISpanRef> _vertexAttribs;
         private int _vertexAttribsLength;
 
-        public void Set(TableRef<IMemoryOwner<VertexAttribDescriptor>> vertexAttribs, int vertexAttribsLength)
+        public void Set(TableRef<ISpanRef> vertexAttribs, int vertexAttribsLength)
         {
             _vertexAttribs = vertexAttribs;
             _vertexAttribsLength = vertexAttribsLength;
@@ -18,11 +18,11 @@ namespace Ryujinx.Graphics.GAL.Multithreading.Commands
 
         public void Run(ThreadedRenderer threaded, IRenderer renderer)
         {
-            IMemoryOwner<VertexAttribDescriptor> vertexOwner = _vertexAttribs.Get(threaded);
+            ISpanRef vertexOwner = _vertexAttribs.Get(threaded);
 
-            ReadOnlySpan<VertexAttribDescriptor> vertexAttribs = vertexOwner.Memory.Span.Slice(0, _vertexAttribsLength);
+            ReadOnlySpan<VertexAttribDescriptor> vertexAttribs = vertexOwner.Get<VertexAttribDescriptor>(_vertexAttribsLength);
             renderer.Pipeline.SetVertexAttribs(vertexAttribs);
-            vertexOwner.Dispose();
+            vertexOwner.Dispose<VertexAttribDescriptor>(_vertexAttribsLength);
         }
     }
 }
