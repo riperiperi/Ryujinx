@@ -8,6 +8,9 @@ using Ryujinx.Graphics.GAL.Multithreading.Commands.Shader;
 using Ryujinx.Graphics.GAL.Multithreading.Commands.Texture;
 using Ryujinx.Graphics.GAL.Multithreading.Commands.Window;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -18,6 +21,24 @@ namespace Ryujinx.Graphics.GAL.Multithreading
         private static void RunTypedCommand<T>(Span<byte> memory, ThreadedRenderer threaded, IRenderer renderer) where T : unmanaged, IGALCommand
         {
             Unsafe.As<byte, T>(ref MemoryMarshal.GetReference(memory)).Run(threaded, renderer);
+        }
+
+        public static int GetMaxCommandSize()
+        {
+            Assembly assembly = typeof(CommandHelper).Assembly;
+
+            IEnumerable<Type> commands = assembly.GetTypes().Where(type => typeof(IGALCommand).IsAssignableFrom(type) && type.IsValueType);
+
+            int maxSize = commands.Max(command =>
+            {
+                MethodInfo method = typeof(Unsafe).GetMethod(nameof(Unsafe.SizeOf));
+                MethodInfo generic = method.MakeGenericMethod(command);
+                int size = (int)generic.Invoke(null, null);
+
+                return size;
+            });
+
+            return maxSize + 1; // 1 byte reserved for command size.
         }
         
         public static void RunCommand(Span<byte> memory, ThreadedRenderer threaded, IRenderer renderer)

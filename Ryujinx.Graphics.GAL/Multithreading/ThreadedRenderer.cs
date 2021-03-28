@@ -1,4 +1,5 @@
-﻿using Ryujinx.Common.Configuration;
+﻿using Ryujinx.Common;
+using Ryujinx.Common.Configuration;
 using Ryujinx.Graphics.GAL.Multithreading.Commands;
 using Ryujinx.Graphics.GAL.Multithreading.Commands.Buffer;
 using Ryujinx.Graphics.GAL.Multithreading.Commands.Renderer;
@@ -6,8 +7,6 @@ using Ryujinx.Graphics.GAL.Multithreading.Model;
 using Ryujinx.Graphics.GAL.Multithreading.Resources;
 using Ryujinx.Graphics.Shader;
 using System;
-using System.Buffers;
-using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -25,9 +24,9 @@ namespace Ryujinx.Graphics.GAL.Multithreading
     {
         private const int SpanPoolBytes = 4 * 1024 * 1024;
         private const int MaxRefsPerCommand = 3;
-        private const int ElementSize = 128;
         private const int QueueCount = 10000;
 
+        private int _elementSize;
         private IRenderer _baseRenderer;
         private Thread _gpuThread;
         private bool _disposed;
@@ -78,7 +77,9 @@ namespace Ryujinx.Graphics.GAL.Multithreading
             _spanPool = new CircularSpanPool(this, SpanPoolBytes);
             SpanPool = _spanPool;
 
-            _commandQueue = new byte[ElementSize * QueueCount];
+            _elementSize = BitUtils.AlignUp(CommandHelper.GetMaxCommandSize(), 4);
+
+            _commandQueue = new byte[_elementSize * QueueCount];
             _refQueue = new object[MaxRefsPerCommand * QueueCount];
         }
 
@@ -113,7 +114,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
                 {
                     int commandPtr = _consumerPtr;
 
-                    Span<byte> command = new Span<byte>(_commandQueue, commandPtr * ElementSize, ElementSize);
+                    Span<byte> command = new Span<byte>(_commandQueue, commandPtr * _elementSize, _elementSize);
 
                     // Run the command.
 
@@ -156,7 +157,7 @@ namespace Ryujinx.Graphics.GAL.Multithreading
 
             _producerPtr = (_producerPtr + 1) % QueueCount;
 
-            Span<byte> memory = new Span<byte>(_commandQueue, taken * ElementSize, ElementSize);
+            Span<byte> memory = new Span<byte>(_commandQueue, taken * _elementSize, _elementSize);
             ref T result = ref Unsafe.As<byte, T>(ref MemoryMarshal.GetReference(memory));
 
             memory[memory.Length - 1] = (byte)((IGALCommand)result).CommandType;
