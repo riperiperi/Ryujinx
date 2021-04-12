@@ -18,6 +18,16 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             _cpuMemory.SignalMemoryTracking(va, size, write);
         }
 
+        protected override ReadOnlySpan<byte> GetSpan(ulong va, int size)
+        {
+            return _cpuMemory.GetSpan(va, size);
+        }
+
+        protected override void Write(ulong va, ReadOnlySpan<byte> data)
+        {
+            _cpuMemory.Write(va, data);
+        }
+
         protected override KernelResult MmuUnmap(ulong address, ulong pagesCount)
         {
             return DoMmuOperation(
@@ -121,11 +131,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
 
             return KernelResult.Success;
-        }
-
-        public override ulong GetDramAddressFromVa(ulong va)
-        {
-            return _cpuMemory.GetPhysicalAddress(va);
         }
 
         public override ulong ConvertVaToPa(ulong va)

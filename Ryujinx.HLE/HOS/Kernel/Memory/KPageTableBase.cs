@@ -1484,26 +1484,20 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                     while (size > 0)
                     {
-                        ulong copySize = Math.Min(PageSize - (serverAddress & (PageSize - 1)), PageSize - (clientAddress & (PageSize - 1)));
+                        ulong copySize = 0x100000; // Copy chunck size. Any value will do, moderate sizes are recommended.
 
                         if (copySize > size)
                         {
                             copySize = size;
                         }
 
-                        ulong serverDramAddr = currentProcess.MemoryManager.GetDramAddressFromVa(serverAddress);
-                        ulong clientDramAddr = GetDramAddressFromVa(clientAddress);
-
-                        if (serverDramAddr != clientDramAddr)
+                        if (toServer)
                         {
-                            if (toServer)
-                            {
-                                _context.Memory.Copy(serverDramAddr, clientDramAddr, copySize);
-                            }
-                            else
-                            {
-                                _context.Memory.Copy(clientDramAddr, serverDramAddr, copySize);
-                            }
+                            currentProcess.CpuMemory.Write(serverAddress, GetSpan(clientAddress, (int)copySize));
+                        }
+                        else
+                        {
+                            Write(clientAddress, currentProcess.CpuMemory.GetSpan(serverAddress, (int)copySize));
                         }
 
                         serverAddress += copySize;
@@ -2827,6 +2821,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         protected abstract void SignalMemoryTracking(ulong va, ulong size, bool write);
 
+        protected abstract ReadOnlySpan<byte> GetSpan(ulong va, int size);
+        protected abstract void Write(ulong va, ReadOnlySpan<byte> data);
+
         protected abstract KernelResult MmuUnmap(ulong address, ulong pagesCount);
         protected abstract KernelResult MmuChangePermission(ulong address, ulong pagesCount, KMemoryPermission permission);
 
@@ -2835,7 +2832,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         protected abstract KernelResult MmuMapPages(ulong address, KPageList pageList);
 
-        public abstract ulong GetDramAddressFromVa(ulong va);
         public abstract ulong ConvertVaToPa(ulong va);
         public abstract bool TryConvertVaToPa(ulong va, out ulong pa);
 
