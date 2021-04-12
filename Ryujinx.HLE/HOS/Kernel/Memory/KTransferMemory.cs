@@ -14,7 +14,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         private readonly KPageList _pageList;
 
         public ulong Address { get; private set; }
-        public ulong Size => _pageList.GetPagesCount() * KMemoryManager.PageSize;
+        public ulong Size => _pageList.GetPagesCount() * KPageTableBase.PageSize;
 
         public KMemoryPermission Permission { get; private set; }
 

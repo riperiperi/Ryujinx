@@ -29,9 +29,9 @@ namespace Ryujinx.HLE.HOS
                 endOffset = kip.BssOffset + kip.BssSize;
             }
 
-            uint codeSize = BitUtils.AlignUp(kip.TextOffset + endOffset, KMemoryManager.PageSize);
+            uint codeSize = BitUtils.AlignUp(kip.TextOffset + endOffset, KPageTableBase.PageSize);
 
-            int codePagesCount = (int)(codeSize / KMemoryManager.PageSize);
+            int codePagesCount = (int)(codeSize / KPageTableBase.PageSize);
 
             ulong codeBaseAddress = kip.Is64BitAddressSpace ? 0x8000000UL : 0x200000UL;
 
@@ -161,7 +161,7 @@ namespace Ryujinx.HLE.HOS
                     nsoSize = dataEnd;
                 }
 
-                nsoSize = BitUtils.AlignUp(nsoSize, KMemoryManager.PageSize);
+                nsoSize = BitUtils.AlignUp(nsoSize, KPageTableBase.PageSize);
 
                 nsoBase[index] = codeStart + (ulong)codeSize;
 
@@ -171,7 +171,7 @@ namespace Ryujinx.HLE.HOS
                 {
                     argsStart = (ulong)codeSize;
 
-                    argsSize = (uint)BitUtils.AlignDown(arguments.Length * 2 + ArgsTotalSize - 1, KMemoryManager.PageSize);
+                    argsSize = (uint)BitUtils.AlignDown(arguments.Length * 2 + ArgsTotalSize - 1, KPageTableBase.PageSize);
 
                     codeSize += argsSize;
                 }
@@ -180,9 +180,9 @@ namespace Ryujinx.HLE.HOS
             PtcProfiler.StaticCodeStart = codeStart;
             PtcProfiler.StaticCodeSize  = (ulong)codeSize;
 
-            int codePagesCount = (int)(codeSize / KMemoryManager.PageSize);
+            int codePagesCount = (int)(codeSize / KPageTableBase.PageSize);
 
-            int personalMmHeapPagesCount = metaData.PersonalMmHeapSize / KMemoryManager.PageSize;
+            int personalMmHeapPagesCount = metaData.PersonalMmHeapSize / KPageTableBase.PageSize;
 
             ProcessCreationInfo creationInfo = new ProcessCreationInfo(
                 metaData.TitleName,
@@ -312,7 +312,7 @@ namespace Ryujinx.HLE.HOS
                     return KernelResult.Success;
                 }
 
-                size = BitUtils.AlignUp(size, KMemoryManager.PageSize);
+                size = BitUtils.AlignUp(size, KPageTableBase.PageSize);
 
                 return process.MemoryManager.SetProcessMemoryPermission(address, size, permission);
             }

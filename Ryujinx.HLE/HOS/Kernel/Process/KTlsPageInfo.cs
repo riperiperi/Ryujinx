@@ -14,7 +14,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
         {
             PageAddr = pageAddress;
 
-            _isSlotFree = new bool[KMemoryManager.PageSize / TlsEntrySize];
+            _isSlotFree = new bool[KPageTableBase.PageSize / TlsEntrySize];
 
             for (int index = 0; index < _isSlotFree.Length; index++)
             {

@@ -25,7 +25,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
             (KernelVersionMinor << 15) |
             (KernelVersionRevision << 0);
 
-        public KMemoryManager MemoryManager { get; private set; }
+        public KPageTableBase MemoryManager { get; private set; }
 
         private SortedDictionary<ulong, KTlsPageInfo> _fullTlsPages;
         private SortedDictionary<ulong, KTlsPageInfo> _freeTlsPages;
@@ -132,11 +132,11 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
             ulong codeAddress = creationInfo.CodeAddress;
 
-            ulong codeSize = (ulong)creationInfo.CodePagesCount * KMemoryManager.PageSize;
+            ulong codeSize = (ulong)creationInfo.CodePagesCount * KPageTableBase.PageSize;
 
-            KMemoryBlockAllocator memoryBlockAllocator = creationInfo.Flags.HasFlag(ProcessCreationFlags.IsApplication)
-                ? KernelContext.LargeMemoryBlockAllocator
-                : KernelContext.SmallMemoryBlockAllocator;
+            KMemoryBlockSlabManager slabManager = creationInfo.Flags.HasFlag(ProcessCreationFlags.IsApplication)
+                ? KernelContext.LargeMemoryBlockSLabManager
+                : KernelContext.SmallMemoryBlockSlabManager;
 
             KernelResult result = MemoryManager.InitializeForProcess(
                 addrSpaceType,
@@ -145,7 +145,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                 memRegion,
                 codeAddress,
                 codeSize,
-                memoryBlockAllocator);
+                slabManager);
 
             if (result != KernelResult.Success)
             {
@@ -202,7 +202,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
             ulong codePagesCount = (ulong)creationInfo.CodePagesCount;
 
-            ulong neededSizeForProcess = personalMmHeapSize + codePagesCount * KMemoryManager.PageSize;
+            ulong neededSizeForProcess = personalMmHeapSize + codePagesCount * KPageTableBase.PageSize;
 
             if (neededSizeForProcess != 0 && resourceLimit != null)
             {
@@ -222,17 +222,17 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
             PersonalMmHeapPagesCount = (ulong)creationInfo.SystemResourcePagesCount;
 
-            KMemoryBlockAllocator memoryBlockAllocator;
+            KMemoryBlockSlabManager slabManager;
 
             if (PersonalMmHeapPagesCount != 0)
             {
-                memoryBlockAllocator = new KMemoryBlockAllocator(PersonalMmHeapPagesCount * KMemoryManager.PageSize);
+                slabManager = new KMemoryBlockSlabManager(PersonalMmHeapPagesCount * KPageTableBase.PageSize);
             }
             else
             {
-                memoryBlockAllocator = creationInfo.Flags.HasFlag(ProcessCreationFlags.IsApplication)
-                    ? KernelContext.LargeMemoryBlockAllocator
-                    : KernelContext.SmallMemoryBlockAllocator;
+                slabManager = creationInfo.Flags.HasFlag(ProcessCreationFlags.IsApplication)
+                    ? KernelContext.LargeMemoryBlockSLabManager
+                    : KernelContext.SmallMemoryBlockSlabManager;
             }
 
             AddressSpaceType addrSpaceType = (AddressSpaceType)((int)(creationInfo.Flags & ProcessCreationFlags.AddressSpaceMask) >> (int)ProcessCreationFlags.AddressSpaceShift);
@@ -243,7 +243,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
             ulong codeAddress = creationInfo.CodeAddress;
 
-            ulong codeSize = codePagesCount * KMemoryManager.PageSize;
+            ulong codeSize = codePagesCount * KPageTableBase.PageSize;
 
             KernelResult result = MemoryManager.InitializeForProcess(
                 addrSpaceType,
@@ -252,7 +252,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                 memRegion,
                 codeAddress,
                 codeSize,
-                memoryBlockAllocator);
+                slabManager);
 
             if (result != KernelResult.Success)
             {
@@ -352,7 +352,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
             _version = creationInfo.Version;
             TitleId = creationInfo.TitleId;
             _entrypoint = creationInfo.CodeAddress;
-            _imageSize = (ulong)creationInfo.CodePagesCount * KMemoryManager.PageSize;
+            _imageSize = (ulong)creationInfo.CodePagesCount * KPageTableBase.PageSize;
 
             switch (Flags & ProcessCreationFlags.AddressSpaceMask)
             {
@@ -440,11 +440,11 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
             ulong regionStart = MemoryManager.TlsIoRegionStart;
             ulong regionSize = MemoryManager.TlsIoRegionEnd - regionStart;
 
-            ulong regionPagesCount = regionSize / KMemoryManager.PageSize;
+            ulong regionPagesCount = regionSize / KPageTableBase.PageSize;
 
             KernelResult result = MemoryManager.AllocateOrMapPa(
                 1,
-                KMemoryManager.PageSize,
+                KPageTableBase.PageSize,
                 tlsPagePa,
                 true,
                 regionStart,
@@ -461,7 +461,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
             {
                 pageInfo = new KTlsPageInfo(tlsPageVa);
 
-                MemoryHelper.FillWithZeros(CpuMemory, tlsPageVa, KMemoryManager.PageSize);
+                MemoryHelper.FillWithZeros(CpuMemory, tlsPageVa, KPageTableBase.PageSize);
             }
 
             return result;
@@ -469,7 +469,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
         public KernelResult FreeThreadLocalStorage(ulong tlsSlotAddr)
         {
-            ulong tlsPageAddr = BitUtils.AlignDown(tlsSlotAddr, KMemoryManager.PageSize);
+            ulong tlsPageAddr = BitUtils.AlignDown(tlsSlotAddr, KPageTableBase.PageSize);
 
             KernelContext.CriticalSection.Enter();
 
@@ -556,7 +556,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                     throw new InvalidOperationException("Trying to start a process with a invalid state!");
                 }
 
-                ulong stackSizeRounded = BitUtils.AlignUp(stackSize, KMemoryManager.PageSize);
+                ulong stackSizeRounded = BitUtils.AlignUp(stackSize, KPageTableBase.PageSize);
 
                 ulong neededSize = stackSizeRounded + _imageSize;
 
@@ -598,7 +598,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                     {
                         ulong stackBottom = stackTop - _mainThreadStackSize;
 
-                        ulong stackPagesCount = _mainThreadStackSize / KMemoryManager.PageSize;
+                        ulong stackPagesCount = _mainThreadStackSize / KPageTableBase.PageSize;
 
                         MemoryManager.UnmapForKernel(stackBottom, stackPagesCount, MemoryState.Stack);
 
@@ -611,16 +611,16 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
                 if (stackSizeRounded != 0)
                 {
-                    ulong stackPagesCount = stackSizeRounded / KMemoryManager.PageSize;
+                    ulong stackPagesCount = stackSizeRounded / KPageTableBase.PageSize;
 
                     ulong regionStart = MemoryManager.StackRegionStart;
                     ulong regionSize = MemoryManager.StackRegionEnd - regionStart;
 
-                    ulong regionPagesCount = regionSize / KMemoryManager.PageSize;
+                    ulong regionPagesCount = regionSize / KPageTableBase.PageSize;
 
                     result = MemoryManager.AllocateOrMapPa(
                         stackPagesCount,
-                        KMemoryManager.PageSize,
+                        KPageTableBase.PageSize,
                         0,
                         false,
                         regionStart,
@@ -834,7 +834,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                 return 0;
             }
 
-            return personalMmHeapPagesCount * KMemoryManager.PageSize;
+            return personalMmHeapPagesCount * KPageTableBase.PageSize;
         }
 
         public void AddCpuTime(long ticks)
@@ -1067,7 +1067,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                 KernelContext.Device.Gpu.SetVmm((MemoryManager)CpuMemory);
             }
 
-            MemoryManager = new KMemoryManager(KernelContext, CpuMemory);
+            MemoryManager = new KPageTable(KernelContext, CpuMemory);
         }
 
         private bool InvalidAccessHandler(ulong va)

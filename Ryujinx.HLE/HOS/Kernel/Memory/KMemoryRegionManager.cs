@@ -82,7 +82,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             if (size != 0)
             {
-                FreePages(address, size / KMemoryManager.PageSize);
+                FreePages(address, size / KPageTableBase.PageSize);
             }
         }
 
@@ -124,7 +124,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                 ulong bestFitBlockSize = 1UL << block.Order;
 
-                ulong blockPagesCount = bestFitBlockSize / KMemoryManager.PageSize;
+                ulong blockPagesCount = bestFitBlockSize / KPageTableBase.PageSize;
 
                 // Check if this is the best fit for this page size.
                 // If so, try allocating as much requested pages as possible.
@@ -185,7 +185,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             int blockIndex = 0;
 
-            while ((1UL << _blocks[blockIndex].Order) / KMemoryManager.PageSize < pagesCount)
+            while ((1UL << _blocks[blockIndex].Order) / KPageTableBase.PageSize < pagesCount)
             {
                 if (++blockIndex >= _blocks.Length)
                 {
@@ -197,11 +197,11 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             ulong address = AllocatePagesForOrder(blockIndex, backwards, tightestFitBlockSize);
 
-            ulong requiredSize = pagesCount * KMemoryManager.PageSize;
+            ulong requiredSize = pagesCount * KPageTableBase.PageSize;
 
             if (address != 0 && tightestFitBlockSize > requiredSize)
             {
-                FreePages(address + requiredSize, (tightestFitBlockSize - requiredSize) / KMemoryManager.PageSize);
+                FreePages(address + requiredSize, (tightestFitBlockSize - requiredSize) / KPageTableBase.PageSize);
             }
 
             return address;
@@ -327,7 +327,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                 if (firstFreeBlockSize > bestFitBlockSize)
                 {
-                    FreePages(address + bestFitBlockSize, (firstFreeBlockSize - bestFitBlockSize) / KMemoryManager.PageSize);
+                    FreePages(address + bestFitBlockSize, (firstFreeBlockSize - bestFitBlockSize) / KPageTableBase.PageSize);
                 }
             }
 
@@ -355,7 +355,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         private void FreePages(ulong address, ulong pagesCount)
         {
-            ulong endAddr = address + pagesCount * KMemoryManager.PageSize;
+            ulong endAddr = address + pagesCount * KPageTableBase.PageSize;
 
             int blockIndex = _blockOrdersCount - 1;
 
@@ -477,7 +477,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             {
                 KMemoryRegionBlock block = _blocks[blockIndex];
 
-                ulong blockPagesCount = (1UL << block.Order) / KMemoryManager.PageSize;
+                ulong blockPagesCount = (1UL << block.Order) / KPageTableBase.PageSize;
 
                 availablePages += blockPagesCount * block.FreeCount;
             }
