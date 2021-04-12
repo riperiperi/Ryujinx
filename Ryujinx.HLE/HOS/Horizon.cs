@@ -141,10 +141,10 @@ namespace Ryujinx.HLE.HOS
             KPageList iirsPageList = new KPageList();
             KPageList timePageList = new KPageList();
 
-            hidPageList .AddRange(hidPa,  HidSize  / KMemoryManager.PageSize);
-            fontPageList.AddRange(fontPa, FontSize / KMemoryManager.PageSize);
-            iirsPageList.AddRange(iirsPa, IirsSize / KMemoryManager.PageSize);
-            timePageList.AddRange(timePa, TimeSize / KMemoryManager.PageSize);
+            hidPageList .AddRange(hidPa,  HidSize  / KPageTableBase.PageSize);
+            fontPageList.AddRange(fontPa, FontSize / KPageTableBase.PageSize);
+            iirsPageList.AddRange(iirsPa, IirsSize / KPageTableBase.PageSize);
+            timePageList.AddRange(timePa, TimeSize / KPageTableBase.PageSize);
 
             HidSharedMem  = new KSharedMemory(KernelContext, hidPageList,  0, 0, KMemoryPermission.Read);
             FontSharedMem = new KSharedMemory(KernelContext, fontPageList, 0, 0, KMemoryPermission.Read);

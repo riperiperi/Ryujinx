@@ -30,8 +30,8 @@ namespace Ryujinx.HLE.HOS.Kernel
 
         public KMemoryRegionManager[] MemoryRegions { get; }
 
-        public KMemoryBlockAllocator LargeMemoryBlockAllocator { get; }
-        public KMemoryBlockAllocator SmallMemoryBlockAllocator { get; }
+        public KMemoryBlockSlabManager LargeMemoryBlockSLabManager { get; }
+        public KMemoryBlockSlabManager SmallMemoryBlockSlabManager { get; }
 
         public KSlabHeap UserSlabHeapPages { get; }
 
@@ -72,8 +72,8 @@ namespace Ryujinx.HLE.HOS.Kernel
 
             MemoryRegions = KernelInit.GetMemoryRegions(memorySize, memoryArrange);
 
-            LargeMemoryBlockAllocator = new KMemoryBlockAllocator(KernelConstants.MemoryBlockAllocatorSize * 2);
-            SmallMemoryBlockAllocator = new KMemoryBlockAllocator(KernelConstants.MemoryBlockAllocatorSize);
+            LargeMemoryBlockSLabManager = new KMemoryBlockSlabManager(KernelConstants.MemoryBlockAllocatorSize * 2);
+            SmallMemoryBlockSlabManager = new KMemoryBlockSlabManager(KernelConstants.MemoryBlockAllocatorSize);
 
             UserSlabHeapPages = new KSlabHeap(
                 KernelConstants.UserSlabHeapBase,

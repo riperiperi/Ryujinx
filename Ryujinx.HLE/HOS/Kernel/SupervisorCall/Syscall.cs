@@ -1278,7 +1278,7 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
 
         private static bool PageAligned(ulong position)
         {
-            return (position & (KMemoryManager.PageSize - 1)) == 0;
+            return (position & (KPageTableBase.PageSize - 1)) == 0;
         }
 
         // System
@@ -1503,12 +1503,12 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                                 value = (long)(process.MemoryManager.StackRegionEnd -
                                                process.MemoryManager.StackRegionStart); break;
 
-                            case 16: value = (long)process.PersonalMmHeapPagesCount * KMemoryManager.PageSize; break;
+                            case 16: value = (long)process.PersonalMmHeapPagesCount * KPageTableBase.PageSize; break;
 
                             case 17:
                                 if (process.PersonalMmHeapPagesCount != 0)
                                 {
-                                    value = process.MemoryManager.GetMmUsedPages() * KMemoryManager.PageSize;
+                                    value = process.MemoryManager.GetMmUsedPages() * KPageTableBase.PageSize;
                                 }
 
                                 break;
@@ -1771,7 +1771,7 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                         {
                             ulong freePagesCount = region.GetFreePages();
 
-                            value = (long)(freePagesCount * KMemoryManager.PageSize);
+                            value = (long)(freePagesCount * KPageTableBase.PageSize);
 
                             break;
                         }
