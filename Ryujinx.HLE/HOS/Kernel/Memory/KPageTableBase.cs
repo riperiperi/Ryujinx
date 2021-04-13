@@ -564,8 +564,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         public KernelResult MapProcessCodeMemory(ulong dst, ulong src, ulong size)
         {
-            ulong pagesCount = size / PageSize;
-
             lock (_blockManager)
             {
                 bool success = CheckRange(
@@ -591,25 +589,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                         return KernelResult.OutOfResource;
                     }
 
-                    KPageList pageList = new KPageList();
+                    KernelResult result = Remap(src, dst, size, permission, KMemoryPermission.None);
 
-                    AddVaRangeToPageList(pageList, src, pagesCount);
-
-                    KernelResult result = MmuChangePermission(src, pagesCount, KMemoryPermission.None);
-
-                    if (result != KernelResult.Success)
-                    {
-                        return result;
-                    }
-
-                    result = MapPages(dst, pageList, KMemoryPermission.None);
-
-                    if (result != KernelResult.Success)
-                    {
-                        MmuChangePermission(src, pagesCount, permission);
-
-                        return result;
-                    }
+                    ulong pagesCount = size / PageSize;
 
                     _blockManager.InsertBlock(src, pagesCount, state, KMemoryPermission.None, MemoryAttribute.Borrowed);
                     _blockManager.InsertBlock(dst, pagesCount, MemoryState.ModCodeStatic);
@@ -625,8 +607,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         public KernelResult UnmapProcessCodeMemory(ulong dst, ulong src, ulong size)
         {
-            ulong pagesCount = size / PageSize;
-
             lock (_blockManager)
             {
                 bool success = CheckRange(
@@ -669,6 +649,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                 if (success)
                 {
+                    ulong pagesCount = size / PageSize;
+
                     KernelResult result = MmuUnmap(dst, pagesCount);
 
                     if (result != KernelResult.Success)
@@ -946,30 +928,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                         return KernelResult.OutOfResource;
                     }
 
+                    KernelResult result = Remap(src, dst, size, KMemoryPermission.ReadAndWrite, KMemoryPermission.ReadAndWrite);
+
+                    if (result != KernelResult.Success)
+                    {
+                        return result;
+                    }
+
                     ulong pagesCount = size / PageSize;
-
-                    KPageList pageList = new KPageList();
-
-                    AddVaRangeToPageList(pageList, src, pagesCount);
-
-                    KernelResult result = MmuChangePermission(src, pagesCount, KMemoryPermission.None);
-
-                    if (result != KernelResult.Success)
-                    {
-                        return result;
-                    }
-
-                    result = MapPages(dst, pageList, KMemoryPermission.ReadAndWrite);
-
-                    if (result != KernelResult.Success)
-                    {
-                        if (MmuChangePermission(src, pagesCount, KMemoryPermission.ReadAndWrite) != KernelResult.Success)
-                        {
-                            throw new InvalidOperationException("Unexpected failure reverting memory permission.");
-                        }
-
-                        return result;
-                    }
 
                     _blockManager.InsertBlock(src, pagesCount, srcState, KMemoryPermission.None, MemoryAttribute.Borrowed);
                     _blockManager.InsertBlock(dst, pagesCount, MemoryState.Stack, KMemoryPermission.ReadAndWrite);
@@ -1065,34 +1031,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                         return KernelResult.OutOfResource;
                     }
 
+                    KernelResult result = Unremap(dst, src, size, dstPermission, KMemoryPermission.ReadAndWrite);
+
+                    if (result != KernelResult.Success)
+                    {
+                        return result;
+                    }
+
                     ulong pagesCount = size / PageSize;
-
-                    KPageList srcPageList = new KPageList();
-                    KPageList dstPageList = new KPageList();
-
-                    AddVaRangeToPageList(srcPageList, src, pagesCount);
-                    AddVaRangeToPageList(dstPageList, dst, pagesCount);
-
-                    if (!dstPageList.IsEqual(srcPageList))
-                    {
-                        return KernelResult.InvalidMemRange;
-                    }
-
-                    KernelResult result = MmuUnmap(dst, pagesCount);
-
-                    if (result != KernelResult.Success)
-                    {
-                        return result;
-                    }
-
-                    result = MmuChangePermission(src, pagesCount, KMemoryPermission.ReadAndWrite);
-
-                    if (result != KernelResult.Success)
-                    {
-                        MapPages(dst, dstPageList, dstPermission);
-
-                        return result;
-                    }
 
                     _blockManager.InsertBlock(src, pagesCount, srcState, KMemoryPermission.ReadAndWrite);
                     _blockManager.InsertBlock(dst, pagesCount, MemoryState.Unmapped);
@@ -2345,23 +2291,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
         }
 
-        private void AddVaRangeToPageList(KPageList pageList, ulong start, ulong pagesCount)
-        {
-            ulong address = start;
-
-            while (address < start + pagesCount * PageSize)
-            {
-                if (!TryConvertVaToPa(address, out ulong pa))
-                {
-                    throw new InvalidOperationException("Unexpected failure translating virtual address.");
-                }
-
-                pageList.AddRange(pa, 1);
-
-                address += PageSize;
-            }
-        }
-
         private static ulong GetAddrInRange(KMemoryInfo info, ulong start)
         {
             if (info.Address < start)
@@ -2786,43 +2715,15 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
         }
 
-        private KernelResult MapPages(ulong address, KPageList pageList, KMemoryPermission permission)
-        {
-            ulong currAddr = address;
-
-            KernelResult result = KernelResult.Success;
-
-            foreach (KPageNode pageNode in pageList)
-            {
-                result = DoMmuOperation(
-                    currAddr,
-                    pageNode.PagesCount,
-                    pageNode.Address,
-                    true,
-                    permission,
-                    MemoryOperation.MapPa);
-
-                if (result != KernelResult.Success)
-                {
-                    KMemoryInfo info = _blockManager.FindBlock(currAddr).GetInfo();
-
-                    ulong pagesCount = (address - currAddr) / PageSize;
-
-                    result = MmuUnmap(address, pagesCount);
-
-                    break;
-                }
-
-                currAddr += pageNode.PagesCount * PageSize;
-            }
-
-            return result;
-        }
-
         protected abstract void SignalMemoryTracking(ulong va, ulong size, bool write);
 
         protected abstract ReadOnlySpan<byte> GetSpan(ulong va, int size);
         protected abstract void Write(ulong va, ReadOnlySpan<byte> data);
+
+        protected abstract KernelResult Remap(ulong src, ulong dst, ulong size, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission);
+        protected abstract KernelResult Unremap(ulong dst, ulong src, ulong size, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission);
+
+        protected abstract KernelResult MapPages(ulong address, KPageList pageList, KMemoryPermission permission);
 
         protected abstract KernelResult MmuUnmap(ulong address, ulong pagesCount);
         protected abstract KernelResult MmuChangePermission(ulong address, ulong pagesCount, KMemoryPermission permission);
@@ -2832,6 +2733,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         protected abstract KernelResult MmuMapPages(ulong address, KPageList pageList);
 
+        protected abstract void AddVaRangeToPageList(KPageList pageList, ulong start, ulong pagesCount);
         public abstract ulong ConvertVaToPa(ulong va);
         public abstract bool TryConvertVaToPa(ulong va, out ulong pa);
 

@@ -1,6 +1,7 @@
 ﻿using Ryujinx.HLE.HOS.Kernel.Common;
 using Ryujinx.Memory;
 using System;
+using System.Diagnostics;
 
 namespace Ryujinx.HLE.HOS.Kernel.Memory
 {
@@ -26,6 +27,96 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         protected override void Write(ulong va, ReadOnlySpan<byte> data)
         {
             _cpuMemory.Write(va, data);
+        }
+
+        protected override KernelResult Remap(ulong src, ulong dst, ulong size, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission)
+        {
+            ulong pagesCount = size / PageSize;
+
+            KPageList pageList = new KPageList();
+
+            AddVaRangeToPageList(pageList, src, pagesCount);
+
+            KernelResult result = MmuChangePermission(src, pagesCount, KMemoryPermission.None);
+
+            if (result != KernelResult.Success)
+            {
+                return result;
+            }
+
+            result = MapPages(dst, pageList, newDstPermission);
+
+            if (result != KernelResult.Success)
+            {
+                KernelResult restorePermissionResult = MmuChangePermission(src, pagesCount, oldSrcPermission);
+                Debug.Assert(restorePermissionResult == KernelResult.Success);
+            }
+
+            return result;
+        }
+
+        protected override KernelResult Unremap(ulong dst, ulong src, ulong size, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission)
+        {
+            KPageList srcPageList = new KPageList();
+            KPageList dstPageList = new KPageList();
+
+            ulong pagesCount = size / PageSize;
+
+            AddVaRangeToPageList(srcPageList, src, pagesCount);
+            AddVaRangeToPageList(dstPageList, dst, pagesCount);
+
+            if (!dstPageList.IsEqual(srcPageList))
+            {
+                return KernelResult.InvalidMemRange;
+            }
+
+            KernelResult result = MmuUnmap(dst, pagesCount);
+
+            if (result != KernelResult.Success)
+            {
+                return result;
+            }
+
+            result = MmuChangePermission(src, pagesCount, newSrcPermission);
+
+            if (result != KernelResult.Success)
+            {
+                KernelResult mapPagesResult = MapPages(dst, dstPageList, oldDstPermission);
+                Debug.Assert(mapPagesResult == KernelResult.Success);
+            }
+
+            return result;
+        }
+
+        protected override KernelResult MapPages(ulong address, KPageList pageList, KMemoryPermission permission)
+        {
+            ulong currAddr = address;
+
+            KernelResult result = KernelResult.Success;
+
+            foreach (KPageNode pageNode in pageList)
+            {
+                result = DoMmuOperation(
+                    currAddr,
+                    pageNode.PagesCount,
+                    pageNode.Address,
+                    true,
+                    permission,
+                    MemoryOperation.MapPa);
+
+                if (result != KernelResult.Success)
+                {
+                    ulong pagesCount = (address - currAddr) / PageSize;
+
+                    result = MmuUnmap(address, pagesCount);
+
+                    break;
+                }
+
+                currAddr += pageNode.PagesCount * PageSize;
+            }
+
+            return result;
         }
 
         protected override KernelResult MmuUnmap(ulong address, ulong pagesCount)
@@ -131,6 +222,23 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
 
             return KernelResult.Success;
+        }
+
+        protected override void AddVaRangeToPageList(KPageList pageList, ulong start, ulong pagesCount)
+        {
+            ulong address = start;
+
+            while (address < start + pagesCount * PageSize)
+            {
+                if (!TryConvertVaToPa(address, out ulong pa))
+                {
+                    throw new InvalidOperationException("Unexpected failure translating virtual address.");
+                }
+
+                pageList.AddRange(pa, 1);
+
+                address += PageSize;
+            }
         }
 
         public override ulong ConvertVaToPa(ulong va)
