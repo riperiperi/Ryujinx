@@ -1708,14 +1708,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 }
 
                 ulong firstPageFillAddress = dstFirstPagePa;
-
-                if (!TryConvertVaToPa(addressTruncated, out ulong srcFirstPagePa))
-                {
-                    CleanUpForError();
-
-                    return KernelResult.InvalidMemState;
-                }
-
                 ulong unusedSizeAfter;
 
                 if (copyData)
@@ -1725,10 +1717,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                     _context.Memory.ZeroFill(GetDramAddressFromPa(dstFirstPagePa), unusedSizeBefore);
 
                     ulong copySize = addressRounded <= endAddr ? addressRounded - address : size;
+                    var data = GetSpan(addressTruncated + unusedSizeBefore, (int)copySize);
 
-                    _context.Memory.Copy(
-                        GetDramAddressFromPa(dstFirstPagePa + unusedSizeBefore),
-                        GetDramAddressFromPa(srcFirstPagePa + unusedSizeBefore), copySize);
+                    _context.Memory.Write(GetDramAddressFromPa(dstFirstPagePa + unusedSizeBefore), data);
 
                     firstPageFillAddress += unusedSizeBefore + copySize;
 
@@ -1776,23 +1767,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 }
 
                 ulong lastPageFillAddr = dstLastPagePa;
-
-                if (!TryConvertVaToPa(endAddrTruncated, out ulong srcLastPagePa))
-                {
-                    CleanUpForError();
-
-                    return KernelResult.InvalidMemState;
-                }
-
                 ulong unusedSizeAfter;
 
                 if (copyData)
                 {
                     ulong copySize = endAddr - endAddrTruncated;
+                    var data = GetSpan(endAddrTruncated, (int)copySize);
 
-                    _context.Memory.Copy(
-                        GetDramAddressFromPa(dstLastPagePa),
-                        GetDramAddressFromPa(srcLastPagePa), copySize);
+                    _context.Memory.Write(GetDramAddressFromPa(dstLastPagePa), data);
 
                     lastPageFillAddr += copySize;
 
@@ -2727,7 +2709,42 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         protected abstract ReadOnlySpan<byte> GetSpan(ulong va, int size);
         protected abstract void Write(ulong va, ReadOnlySpan<byte> data);
 
+        /// <summary>
+        /// Maps heap memory, with backing memory that the pages should be mapped to.
+        /// Use of the backing memory is optional, and will be only used if the platform supports memory aliasing.
+        /// If not supported by the implementation, the <paramref name="pageList"/> storage will be ignored,
+        /// and a new memory region will be allocated.
+        /// </summary>
+        /// <param name="va">Virtual address of the region that should be mapped</param>
+        /// <param name="size">Size of the region being mapped, in bytes</param>
+        /// <param name="pageList">Page list with backing storage for the mapping, may be ignored</param>
+        /// <param name="permission">Memory protection of the region being mapped</param>
+        /// <returns>Result of the mapping operation</returns>
+        protected abstract KernelResult MapHeap(ulong va, ulong size, KPageList pageList, KMemoryPermission permission);
+
+        /// <summary>
+        /// Maps a new memory region with the contents of a existing memory region.
+        /// The implementation might use the same physical memory region for the new mapping if supported,
+        /// or copy the data from the source region to the destination otherwise.
+        /// If successful, the source region is reprotected to "None" and becomes inaccessible.
+        /// </summary>
+        /// <param name="src">Source memory region where the data will be taken from</param>
+        /// <param name="dst">Destination memory region to map</param>
+        /// <param name="size">Size of the mapping</param>
+        /// <param name="oldSrcPermission">Current protection of the source memory region</param>
+        /// <param name="newDstPermission">Desired protection for the destination memory region</param>
+        /// <returns>Result of the mapping operation</returns>
         protected abstract KernelResult Remap(ulong src, ulong dst, ulong size, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission);
+        
+        /// <summary>
+        /// Reverts a <see cref="Remap"/> operation.
+        /// </summary>
+        /// <param name="dst">Destination memory region to be unmapped</param>
+        /// <param name="src">Source memory region that was originally remapped</param>
+        /// <param name="size">Size of the region being unmapped</param>
+        /// <param name="oldDstPermission">Current protection of the destination memory region</param>
+        /// <param name="newSrcPermission">Desired protection of the source memory region</param>
+        /// <returns>Result of the unmapping operation</returns>
         protected abstract KernelResult Unremap(ulong dst, ulong src, ulong size, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission);
 
         protected abstract KernelResult MapPages(ulong address, KPageList pageList, KMemoryPermission permission);
@@ -2738,11 +2755,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         protected abstract KernelResult DoMmuOperation(ulong dstVa, ulong pagesCount, ulong srcPa, bool map, KMemoryPermission permission, MemoryOperation operation);
         protected abstract KernelResult DoMmuOperation(ulong address, ulong pagesCount, KPageList pageList, KMemoryPermission permission, MemoryOperation operation);
 
-        protected abstract KernelResult MmuMapPages(ulong address, KPageList pageList);
-
         protected abstract void AddVaRangeToPageList(KPageList pageList, ulong start, ulong pagesCount);
         public abstract ulong ConvertVaToPa(ulong va);
-        public abstract bool TryConvertVaToPa(ulong va, out ulong pa);
 
         public static ulong GetDramAddressFromPa(ulong pa)
         {
