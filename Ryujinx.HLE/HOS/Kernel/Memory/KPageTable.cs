@@ -29,6 +29,16 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             _cpuMemory.Write(va, data);
         }
 
+        protected override KernelResult MapHeap(ulong va, ulong size, KPageList pageList, KMemoryPermission permission)
+        {
+            return DoMmuOperation(
+                va,
+                size / PageSize,
+                pageList,
+                KMemoryPermission.ReadAndWrite,
+                MemoryOperation.MapVa);
+        }
+
         protected override KernelResult Remap(ulong src, ulong dst, ulong size, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission)
         {
             ulong pagesCount = size / PageSize;
@@ -210,7 +220,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             return MmuMapPages(address, pageList);
         }
 
-        protected override KernelResult MmuMapPages(ulong address, KPageList pageList)
+        private KernelResult MmuMapPages(ulong address, KPageList pageList)
         {
             foreach (KPageNode pageNode in pageList)
             {
@@ -251,7 +261,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             return pa;
         }
 
-        public override bool TryConvertVaToPa(ulong va, out ulong pa)
+        private bool TryConvertVaToPa(ulong va, out ulong pa)
         {
             pa = DramMemoryMap.DramBase + _cpuMemory.GetPhysicalAddress(va);
 

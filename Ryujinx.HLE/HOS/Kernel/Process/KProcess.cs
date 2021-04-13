@@ -396,9 +396,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
                 if (pageInfo.IsFull())
                 {
-                    _freeTlsPages.Remove(pageInfo.PageAddr);
+                    _freeTlsPages.Remove(pageInfo.PageVirtualAddress);
 
-                    _fullTlsPages.Add(pageInfo.PageAddr, pageInfo);
+                    _fullTlsPages.Add(pageInfo.PageVirtualAddress, pageInfo);
                 }
 
                 result = KernelResult.Success;
@@ -415,7 +415,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                         throw new InvalidOperationException("Unexpected failure getting free TLS page!");
                     }
 
-                    _freeTlsPages.Add(pageInfo.PageAddr, pageInfo);
+                    _freeTlsPages.Add(pageInfo.PageVirtualAddress, pageInfo);
                 }
                 else
                 {
@@ -459,7 +459,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
             }
             else
             {
-                pageInfo = new KTlsPageInfo(tlsPageVa);
+                pageInfo = new KTlsPageInfo(tlsPageVa, tlsPagePa);
 
                 MemoryHelper.FillWithZeros(CpuMemory, tlsPageVa, KPageTableBase.PageSize);
             }
@@ -514,16 +514,11 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
         private KernelResult FreeTlsPage(KTlsPageInfo pageInfo)
         {
-            if (!MemoryManager.TryConvertVaToPa(pageInfo.PageAddr, out ulong tlsPagePa))
-            {
-                throw new InvalidOperationException("Unexpected failure translating virtual address to physical.");
-            }
-
-            KernelResult result = MemoryManager.UnmapForKernel(pageInfo.PageAddr, 1, MemoryState.ThreadLocal);
+            KernelResult result = MemoryManager.UnmapForKernel(pageInfo.PageVirtualAddress, 1, MemoryState.ThreadLocal);
 
             if (result == KernelResult.Success)
             {
-                KernelContext.UserSlabHeapPages.Free(tlsPagePa);
+                KernelContext.UserSlabHeapPages.Free(pageInfo.PagePhysicalAddress);
             }
 
             return result;
