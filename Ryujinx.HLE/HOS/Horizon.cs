@@ -127,7 +127,7 @@ namespace Ryujinx.HLE.HOS
 
             // Note: This is not really correct, but with HLE of services, the only memory
             // region used that is used is Application, so we can use the other ones for anything.
-            KMemoryRegionManager region = KernelContext.MemoryRegions[(int)MemoryRegion.NvServices];
+            KMemoryRegionManager region = KernelContext.MemoryManager.MemoryRegions[(int)MemoryRegion.NvServices];
 
             ulong hidPa  = region.Address;
             ulong fontPa = region.Address + HidSize;
