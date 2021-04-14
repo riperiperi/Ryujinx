@@ -1,5 +1,6 @@
 using Ryujinx.Common;
 using Ryujinx.HLE.HOS.Kernel.Common;
+using System.Diagnostics;
 
 namespace Ryujinx.HLE.HOS.Kernel.Memory
 {
@@ -13,7 +14,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         private int _blockOrdersCount;
 
-        private KMemoryRegionBlock[] _blocks;
+        private readonly KMemoryRegionBlock[] _blocks;
+
+        private readonly ushort[] _pageReferenceCounts;
 
         public KMemoryRegionManager(ulong address, ulong size, ulong endAddr)
         {
@@ -80,6 +83,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 }
             }
 
+            _pageReferenceCounts = new ushort[size / KPageTableBase.PageSize];
+
             if (size != 0)
             {
                 FreePages(address, size / KPageTableBase.PageSize);
@@ -90,7 +95,17 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         {
             lock (_blocks)
             {
-                return AllocatePagesImpl(pagesCount, backwards, out pageList);
+                KernelResult result = AllocatePagesImpl(pagesCount, backwards, out pageList);
+
+                if (result == KernelResult.Success)
+                {
+                    foreach (var node in pageList)
+                    {
+                        IncrementPagesReferenceCount(node.Address, node.PagesCount);
+                    }
+                }
+
+                return result;
             }
         }
 
@@ -98,7 +113,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         {
             lock (_blocks)
             {
-                return AllocatePagesContiguousImpl(pagesCount, backwards);
+                ulong address = AllocatePagesContiguousImpl(pagesCount, backwards);
+
+                if (address != 0)
+                {
+                    IncrementPagesReferenceCount(address, pagesCount);
+                }
+
+                return address;
             }
         }
 
@@ -334,26 +356,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             return address;
         }
 
-        public void FreePage(ulong address)
-        {
-            lock (_blocks)
-            {
-                FreePages(address, 1);
-            }
-        }
-
-        public void FreePages(KPageList pageList)
-        {
-            lock (_blocks)
-            {
-                foreach (KPageNode pageNode in pageList)
-                {
-                    FreePages(pageNode.Address, pageNode.PagesCount);
-                }
-            }
-        }
-
-        private void FreePages(ulong address, ulong pagesCount)
+        public void FreePages(ulong address, ulong pagesCount)
         {
             ulong endAddr = address + pagesCount * KPageTableBase.PageSize;
 
@@ -483,6 +486,70 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
 
             return availablePages;
+        }
+
+        public void IncrementPagesReferenceCount(ulong address, ulong pagesCount)
+        {
+            ulong index = GetPageOffset(address);
+            ulong endIndex = index + pagesCount;
+
+            while (index < endIndex)
+            {
+                ushort referenceCount = ++_pageReferenceCounts[index];
+                Debug.Assert(referenceCount >= 1);
+
+                index++;
+            }
+        }
+
+        public void DecrementPagesReferenceCount(ulong address, ulong pagesCount)
+        {
+            ulong index = GetPageOffset(address);
+            ulong endIndex = index + pagesCount;
+
+            ulong freeBaseIndex = 0;
+            ulong freePagesCount = 0;
+
+            while (index < endIndex)
+            {
+                Debug.Assert(_pageReferenceCounts[index] > 0);
+                ushort referenceCount = --_pageReferenceCounts[index];
+
+                if (referenceCount == 0)
+                {
+                    if (freePagesCount != 0)
+                    {
+                        freePagesCount++;
+                    }
+                    else
+                    {
+                        freeBaseIndex = index;
+                        freePagesCount = 1;
+                    }
+                }
+                else if (freePagesCount != 0)
+                {
+                    FreePages(Address + freeBaseIndex * KPageTableBase.PageSize, freePagesCount);
+                    freePagesCount = 0;
+                }
+
+                index++;
+            }
+
+            if (freePagesCount != 0)
+            {
+                FreePages(Address + freeBaseIndex * KPageTableBase.PageSize, freePagesCount);
+            }
+        }
+
+        public ulong GetPageOffset(ulong address)
+        {
+            return (address - Address) / KPageTableBase.PageSize;
+        }
+
+        public ulong GetPageOffsetFromEnd(ulong address)
+        {
+            return (EndAddr - address) / KPageTableBase.PageSize;
         }
     }
 }

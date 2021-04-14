@@ -28,7 +28,7 @@ namespace Ryujinx.HLE.HOS.Kernel
 
         public KResourceLimit ResourceLimit { get; }
 
-        public KMemoryRegionManager[] MemoryRegions { get; }
+        public KMemoryManager MemoryManager { get; }
 
         public KMemoryBlockSlabManager LargeMemoryBlockSLabManager { get; }
         public KMemoryBlockSlabManager SmallMemoryBlockSlabManager { get; }
@@ -70,7 +70,7 @@ namespace Ryujinx.HLE.HOS.Kernel
 
             KernelInit.InitializeResourceLimit(ResourceLimit, memorySize);
 
-            MemoryRegions = KernelInit.GetMemoryRegions(memorySize, memoryArrange);
+            MemoryManager = new KMemoryManager(memorySize, memoryArrange);
 
             LargeMemoryBlockSLabManager = new KMemoryBlockSlabManager(KernelConstants.MemoryBlockAllocatorSize * 2);
             SmallMemoryBlockSlabManager = new KMemoryBlockSlabManager(KernelConstants.MemoryBlockAllocatorSize);

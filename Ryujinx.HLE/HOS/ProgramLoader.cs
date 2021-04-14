@@ -70,7 +70,7 @@ namespace Ryujinx.HLE.HOS
                 ? MemoryRegion.Service
                 : MemoryRegion.Application;
 
-            KMemoryRegionManager region = context.MemoryRegions[(int)memoryRegion];
+            KMemoryRegionManager region = context.MemoryManager.MemoryRegions[(int)memoryRegion];
 
             KernelResult result = region.AllocatePages((ulong)codePagesCount, false, out KPageList pageList);
 
@@ -198,7 +198,7 @@ namespace Ryujinx.HLE.HOS
 
             KResourceLimit resourceLimit = new KResourceLimit(context);
 
-            long applicationRgSize = (long)context.MemoryRegions[(int)MemoryRegion.Application].Size;
+            long applicationRgSize = (long)context.MemoryManager.MemoryRegions[(int)MemoryRegion.Application].Size;
 
             result  = resourceLimit.SetLimitValue(LimitableResource.Memory,         applicationRgSize);
             result |= resourceLimit.SetLimitValue(LimitableResource.Thread,         608);
