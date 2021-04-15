@@ -29,17 +29,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             _cpuMemory.Write(va, data);
         }
 
-        protected override KernelResult MapHeap(ulong va, ulong size, KPageList pageList, KMemoryPermission permission)
-        {
-            return DoMmuOperation(
-                va,
-                size / PageSize,
-                pageList,
-                KMemoryPermission.ReadAndWrite,
-                MemoryOperation.MapVa);
-        }
-
-        protected override KernelResult Remap(ulong src, ulong dst, ulong size, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission)
+        /// <inheritdoc/>
+        protected override KernelResult MapMemory(ulong src, ulong dst, ulong size, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission)
         {
             ulong pagesCount = size / PageSize;
 
@@ -47,25 +38,26 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             AddVaRangeToPageList(pageList, src, pagesCount);
 
-            KernelResult result = MmuChangePermission(src, pagesCount, KMemoryPermission.None);
+            KernelResult result = Reprotect(src, pagesCount, KMemoryPermission.None);
 
             if (result != KernelResult.Success)
             {
                 return result;
             }
 
-            result = MapPages(dst, pageList, newDstPermission);
+            result = MapPages(dst, pageList, true, newDstPermission);
 
             if (result != KernelResult.Success)
             {
-                KernelResult reprotectResult = MmuChangePermission(src, pagesCount, oldSrcPermission);
+                KernelResult reprotectResult = Reprotect(src, pagesCount, oldSrcPermission);
                 Debug.Assert(reprotectResult == KernelResult.Success);
             }
 
             return result;
         }
 
-        protected override KernelResult Unremap(ulong dst, ulong src, ulong size, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission)
+        /// <inheritdoc/>
+        protected override KernelResult UnmapMemory(ulong dst, ulong src, ulong size, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission)
         {
             KPageList srcPageList = new KPageList();
             KPageList dstPageList = new KPageList();
@@ -80,88 +72,55 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 return KernelResult.InvalidMemRange;
             }
 
-            KernelResult result = MmuUnmap(dst, pagesCount);
+            KernelResult result = Unmap(dst, pagesCount);
 
             if (result != KernelResult.Success)
             {
                 return result;
             }
 
-            result = MmuChangePermission(src, pagesCount, newSrcPermission);
+            result = Reprotect(src, pagesCount, newSrcPermission);
 
             if (result != KernelResult.Success)
             {
-                KernelResult mapResult = MapPages(dst, dstPageList, oldDstPermission);
+                KernelResult mapResult = MapPages(dst, dstPageList, true, oldDstPermission);
                 Debug.Assert(mapResult == KernelResult.Success);
             }
 
             return result;
         }
 
-        protected override KernelResult MapPages(ulong address, KPageList pageList, KMemoryPermission permission)
+        /// <inheritdoc/>
+        protected override KernelResult MapPages(ulong dstVa, ulong pagesCount, ulong srcPa, bool mustAlias, KMemoryPermission permission)
         {
-            using var scopedPageList = new KScopedPageList(Context.MemoryManager, pageList);
-
-            ulong currAddr = address;
-
-            KernelResult result = KernelResult.Success;
-
-            foreach (KPageNode pageNode in pageList)
-            {
-                result = DoMmuOperation(
-                    currAddr,
-                    pageNode.PagesCount,
-                    pageNode.Address,
-                    true,
-                    permission,
-                    MemoryOperation.MapPa);
-
-                if (result != KernelResult.Success)
-                {
-                    ulong pagesCount = (address - currAddr) / PageSize;
-
-                    KernelResult unmapResult = MmuUnmap(address, pagesCount);
-                    Debug.Assert(unmapResult == KernelResult.Success);
-
-                    break;
-                }
-
-                currAddr += pageNode.PagesCount * PageSize;
-            }
-
-            if (result != KernelResult.Success)
-            {
-                return result;
-            }
-
-            scopedPageList.SignalSuccess();
-
-            return KernelResult.Success;
+            return DoMmuOperation(dstVa, pagesCount, srcPa, true, permission, MemoryOperation.Map);
         }
 
-        protected override KernelResult MmuUnmap(ulong address, ulong pagesCount)
+        /// <inheritdoc/>
+        protected override KernelResult MapPages(ulong address, KPageList pageList, bool mustAlias, KMemoryPermission permission)
         {
-            return DoMmuOperation(
-                address,
-                pagesCount,
-                0,
-                false,
-                KMemoryPermission.None,
-                MemoryOperation.Unmap);
+            return DoMmuOperation(address, pageList.GetPagesCount(), pageList, permission, MemoryOperation.MapList);
         }
 
-        protected override KernelResult MmuChangePermission(ulong address, ulong pagesCount, KMemoryPermission permission)
+        /// <inheritdoc/>
+        protected override KernelResult Unmap(ulong address, ulong pagesCount)
         {
-            return DoMmuOperation(
-                address,
-                pagesCount,
-                0,
-                false,
-                permission,
-                MemoryOperation.ChangePermRw);
+            return DoMmuOperation(address, pagesCount, 0, false, KMemoryPermission.None, MemoryOperation.Unmap);
         }
 
-        protected override KernelResult DoMmuOperation(
+        /// <inheritdoc/>
+        protected override KernelResult Reprotect(ulong address, ulong pagesCount, KMemoryPermission permission)
+        {
+            return DoMmuOperation(address, pagesCount, 0, false, permission, MemoryOperation.Reprotect);
+        }
+
+        /// <inheritdoc/>
+        protected override KernelResult ReprotectWithAttributes(ulong address, ulong pagesCount, KMemoryPermission permission)
+        {
+            return DoMmuOperation(address, pagesCount, 0, false, permission, MemoryOperation.ReprotectWithAttributes);
+        }
+
+        private KernelResult DoMmuOperation(
             ulong dstVa,
             ulong pagesCount,
             ulong srcPa,
@@ -169,7 +128,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             KMemoryPermission permission,
             MemoryOperation operation)
         {
-            if (map != (operation == MemoryOperation.MapPa))
+            if (map != (operation == MemoryOperation.Map))
             {
                 throw new ArgumentException(nameof(map) + " value is invalid for this operation.");
             }
@@ -180,7 +139,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             switch (operation)
             {
-                case MemoryOperation.MapPa:
+                case MemoryOperation.Map:
                     _cpuMemory.Map(dstVa, srcPa - DramMemoryMap.DramBase, size);
 
                     if (DramMemoryMap.IsHeapPhysicalAddress(srcPa))
@@ -189,18 +148,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                     }
 
                     result = KernelResult.Success;
-
-                    break;
-
-                case MemoryOperation.Allocate:
-                    KMemoryRegionManager region = GetMemoryRegionManager();
-
-                    result = region.AllocatePages(pagesCount, AslrDisabled, out KPageList pageList);
-
-                    if (result == KernelResult.Success)
-                    {
-                        result = MapPages(dstVa, pageList, permission);
-                    }
 
                     break;
 
@@ -221,8 +168,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                     break;
 
-                case MemoryOperation.ChangePermRw: result = KernelResult.Success; break;
-                case MemoryOperation.ChangePermsAndAttributes: result = KernelResult.Success; break;
+                case MemoryOperation.Reprotect: result = KernelResult.Success; break;
+                case MemoryOperation.ReprotectWithAttributes: result = KernelResult.Success; break;
 
                 default: throw new ArgumentException($"Invalid operation \"{operation}\".");
             }
@@ -230,19 +177,60 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             return result;
         }
 
-        protected override KernelResult DoMmuOperation(
+        private KernelResult DoMmuOperation(
             ulong address,
             ulong pagesCount,
             KPageList pageList,
             KMemoryPermission permission,
             MemoryOperation operation)
         {
-            if (operation != MemoryOperation.MapVa)
+            if (operation != MemoryOperation.MapList)
             {
                 throw new ArgumentException($"Invalid memory operation \"{operation}\" specified.");
             }
 
-            return MapPages(address, pageList, permission);
+            return MapPagesImpl(address, pageList, permission);
+        }
+
+        private KernelResult MapPagesImpl(ulong address, KPageList pageList, KMemoryPermission permission)
+        {
+            using var scopedPageList = new KScopedPageList(Context.MemoryManager, pageList);
+
+            ulong currAddr = address;
+
+            KernelResult result = KernelResult.Success;
+
+            foreach (KPageNode pageNode in pageList)
+            {
+                result = DoMmuOperation(
+                    currAddr,
+                    pageNode.PagesCount,
+                    pageNode.Address,
+                    true,
+                    permission,
+                    MemoryOperation.Map);
+
+                if (result != KernelResult.Success)
+                {
+                    ulong pagesCount = (address - currAddr) / PageSize;
+
+                    KernelResult unmapResult = Unmap(address, pagesCount);
+                    Debug.Assert(unmapResult == KernelResult.Success);
+
+                    break;
+                }
+
+                currAddr += pageNode.PagesCount * PageSize;
+            }
+
+            if (result != KernelResult.Success)
+            {
+                return result;
+            }
+
+            scopedPageList.SignalSuccess();
+
+            return KernelResult.Success;
         }
 
         protected override void AddVaRangeToPageList(KPageList pageList, ulong start, ulong pagesCount)

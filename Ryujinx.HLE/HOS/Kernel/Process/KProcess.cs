@@ -157,11 +157,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                 return KernelResult.InvalidMemRange;
             }
 
-            result = MemoryManager.MapPages(
-                codeAddress,
-                pageList,
-                MemoryState.CodeStatic,
-                KMemoryPermission.None);
+            result = MemoryManager.MapPages(codeAddress, pageList, MemoryState.CodeStatic, KMemoryPermission.None);
 
             if (result != KernelResult.Success)
             {
@@ -268,7 +264,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                 return KernelResult.InvalidMemRange;
             }
 
-            result = MemoryManager.MapNewProcessCode(
+            result = MemoryManager.MapPages(
                 codeAddress,
                 codePagesCount,
                 MemoryState.CodeStatic,
@@ -442,7 +438,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
             ulong regionPagesCount = regionSize / KPageTableBase.PageSize;
 
-            KernelResult result = MemoryManager.AllocateOrMapPa(
+            KernelResult result = MemoryManager.MapPages(
                 1,
                 KPageTableBase.PageSize,
                 tlsPagePa,
@@ -613,7 +609,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
 
                     ulong regionPagesCount = regionSize / KPageTableBase.PageSize;
 
-                    result = MemoryManager.AllocateOrMapPa(
+                    result = MemoryManager.MapPages(
                         stackPagesCount,
                         KPageTableBase.PageSize,
                         0,
