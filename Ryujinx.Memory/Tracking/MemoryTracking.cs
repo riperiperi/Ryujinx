@@ -9,7 +9,6 @@ namespace Ryujinx.Memory.Tracking
     public class MemoryTracking
     {
         private readonly IVirtualMemoryManager _memoryManager;
-        private readonly MemoryBlock _block;
 
         // Only use these from within the lock.
         private readonly NonOverlappingRangeList<VirtualRegion> _virtualRegions;
@@ -34,10 +33,9 @@ namespace Ryujinx.Memory.Tracking
         /// <param name="memoryManager">Virtual memory manager</param>
         /// <param name="block">Physical memory block</param>
         /// <param name="pageSize">Page size of the virtual memory space</param>
-        public MemoryTracking(IVirtualMemoryManager memoryManager, MemoryBlock block, int pageSize)
+        public MemoryTracking(IVirtualMemoryManager memoryManager, int pageSize)
         {
             _memoryManager = memoryManager;
-            _block = block;
             _pageSize = pageSize;
 
             _virtualRegions = new NonOverlappingRangeList<VirtualRegion>();
@@ -56,9 +54,8 @@ namespace Ryujinx.Memory.Tracking
         /// Should be called after the mapping is complete.
         /// </summary>
         /// <param name="va">Virtual memory address</param>
-        /// <param name="pa">Physical memory address</param>
         /// <param name="size">Size to be mapped</param>
-        public void Map(ulong va, ulong pa, ulong size)
+        public void Map(ulong va, ulong size)
         {
             // A mapping may mean we need to re-evaluate each VirtualRegion's affected area.
             // Find all handles that overlap with the range, we need to recalculate their physical regions

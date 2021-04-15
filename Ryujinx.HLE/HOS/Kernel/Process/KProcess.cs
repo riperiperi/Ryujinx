@@ -1049,7 +1049,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
                 _ => 39
             };
 
-            Context = _contextFactory.Create(KernelContext.Memory, 1UL << addrSpaceBits, InvalidAccessHandler);
+            Context = _contextFactory.Create(1UL << addrSpaceBits, InvalidAccessHandler);
 
             // TODO: This should eventually be removed.
             // The GPU shouldn't depend on the CPU memory manager at all.

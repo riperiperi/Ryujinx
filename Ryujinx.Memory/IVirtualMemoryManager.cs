@@ -4,7 +4,7 @@ namespace Ryujinx.Memory
 {
     public interface IVirtualMemoryManager
     {
-        void Map(ulong va, ulong pa, ulong size);
+        void Map(ulong va, nuint hostAddress, ulong size);
         void Unmap(ulong va, ulong size);
 
         T Read<T>(ulong va) where T : unmanaged;
@@ -29,11 +29,10 @@ namespace Ryujinx.Memory
         WritableRegion GetWritableRegion(ulong va, int size);
         ref T GetRef<T>(ulong va) where T : unmanaged;
 
-        (ulong address, ulong size)[] GetPhysicalRegions(ulong va, ulong size);
+        (nuint hostAddress, ulong size)[] GetPhysicalRegions(ulong va, ulong size);
 
         bool IsMapped(ulong va);
         bool IsRangeMapped(ulong va, ulong size);
-        ulong GetPhysicalAddress(ulong va);
 
         void SignalMemoryTracking(ulong va, ulong size, bool write);
         void TrackingReprotect(ulong va, ulong size, MemoryPermission protection);

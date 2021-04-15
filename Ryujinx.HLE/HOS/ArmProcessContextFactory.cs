@@ -6,9 +6,9 @@ namespace Ryujinx.HLE.HOS
 {
     class ArmProcessContextFactory : IProcessContextFactory
     {
-        public IProcessContext Create(MemoryBlock backingMemory, ulong addressSpaceSize, InvalidAccessHandler invalidAccessHandler)
+        public IProcessContext Create(ulong addressSpaceSize, InvalidAccessHandler invalidAccessHandler)
         {
-            return new ArmProcessContext(new MemoryManager(backingMemory, addressSpaceSize, invalidAccessHandler));
+            return new ArmProcessContext(new MemoryManager(addressSpaceSize, invalidAccessHandler));
         }
     }
 }
