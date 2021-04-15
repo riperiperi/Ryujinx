@@ -587,9 +587,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                         return KernelResult.OutOfResource;
                     }
 
-                    KernelResult result = MapMemory(src, dst, size, permission, KMemoryPermission.None);
-
                     ulong pagesCount = size / PageSize;
+
+                    KernelResult result = MapMemory(src, dst, pagesCount, permission, KMemoryPermission.None);
 
                     _blockManager.InsertBlock(src, pagesCount, state, KMemoryPermission.None, MemoryAttribute.Borrowed);
                     _blockManager.InsertBlock(dst, pagesCount, MemoryState.ModCodeStatic);
@@ -918,14 +918,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                         return KernelResult.OutOfResource;
                     }
 
-                    KernelResult result = MapMemory(src, dst, size, KMemoryPermission.ReadAndWrite, KMemoryPermission.ReadAndWrite);
+                    ulong pagesCount = size / PageSize;
+
+                    KernelResult result = MapMemory(src, dst, pagesCount, KMemoryPermission.ReadAndWrite, KMemoryPermission.ReadAndWrite);
 
                     if (result != KernelResult.Success)
                     {
                         return result;
                     }
-
-                    ulong pagesCount = size / PageSize;
 
                     _blockManager.InsertBlock(src, pagesCount, srcState, KMemoryPermission.None, MemoryAttribute.Borrowed);
                     _blockManager.InsertBlock(dst, pagesCount, MemoryState.Stack, KMemoryPermission.ReadAndWrite);
@@ -1021,14 +1021,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                         return KernelResult.OutOfResource;
                     }
 
-                    KernelResult result = UnmapMemory(dst, src, size, dstPermission, KMemoryPermission.ReadAndWrite);
+                    ulong pagesCount = size / PageSize;
+
+                    KernelResult result = UnmapMemory(dst, src, pagesCount, dstPermission, KMemoryPermission.ReadAndWrite);
 
                     if (result != KernelResult.Success)
                     {
                         return result;
                     }
-
-                    ulong pagesCount = size / PageSize;
 
                     _blockManager.InsertBlock(src, pagesCount, srcState, KMemoryPermission.ReadAndWrite);
                     _blockManager.InsertBlock(dst, pagesCount, MemoryState.Unmapped);
@@ -2648,28 +2648,28 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         /// </summary>
         /// <param name="src">Source memory region where the data will be taken from</param>
         /// <param name="dst">Destination memory region to map</param>
-        /// <param name="size">Size of the mapping</param>
+        /// <param name="pagesCount">Number of pages to map</param>
         /// <param name="oldSrcPermission">Current protection of the source memory region</param>
         /// <param name="newDstPermission">Desired protection for the destination memory region</param>
         /// <returns>Result of the mapping operation</returns>
-        protected abstract KernelResult MapMemory(ulong src, ulong dst, ulong size, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission);
+        protected abstract KernelResult MapMemory(ulong src, ulong dst, ulong pagesCount, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission);
 
         /// <summary>
         /// Unmaps a region of memory that was previously mapped with <see cref="MapMemory"/>.
         /// </summary>
         /// <param name="dst">Destination memory region to be unmapped</param>
         /// <param name="src">Source memory region that was originally remapped</param>
-        /// <param name="size">Size of the region being unmapped</param>
+        /// <param name="pagesCount">Number of pages to unmap</param>
         /// <param name="oldDstPermission">Current protection of the destination memory region</param>
         /// <param name="newSrcPermission">Desired protection of the source memory region</param>
         /// <returns>Result of the unmapping operation</returns>
-        protected abstract KernelResult UnmapMemory(ulong dst, ulong src, ulong size, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission);
+        protected abstract KernelResult UnmapMemory(ulong dst, ulong src, ulong pagesCount, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission);
 
         /// <summary>
         /// Maps a region of memory into the specified physical memory region.
         /// </summary>
         /// <param name="dstVa">Destination virtual address that should be mapped</param>
-        /// <param name="pagesCount">Number of pages to be mapped</param>
+        /// <param name="pagesCount">Number of pages to map</param>
         /// <param name="srcPa">Physical address where the pages should be mapped</param>
         /// <param name="mustAlias">Indicates if using the supplied <paramref name="srcPa"/> is required for correctness</param>
         /// <param name="permission">Permission of the region to be mapped</param>

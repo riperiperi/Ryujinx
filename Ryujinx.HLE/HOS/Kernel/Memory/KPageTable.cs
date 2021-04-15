@@ -30,10 +30,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         }
 
         /// <inheritdoc/>
-        protected override KernelResult MapMemory(ulong src, ulong dst, ulong size, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission)
+        protected override KernelResult MapMemory(ulong src, ulong dst, ulong pagesCount, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission)
         {
-            ulong pagesCount = size / PageSize;
-
             KPageList pageList = new KPageList();
 
             AddVaRangeToPageList(pageList, src, pagesCount);
@@ -57,12 +55,10 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         }
 
         /// <inheritdoc/>
-        protected override KernelResult UnmapMemory(ulong dst, ulong src, ulong size, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission)
+        protected override KernelResult UnmapMemory(ulong dst, ulong src, ulong pagesCount, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission)
         {
             KPageList srcPageList = new KPageList();
             KPageList dstPageList = new KPageList();
-
-            ulong pagesCount = size / PageSize;
 
             AddVaRangeToPageList(srcPageList, src, pagesCount);
             AddVaRangeToPageList(dstPageList, dst, pagesCount);
