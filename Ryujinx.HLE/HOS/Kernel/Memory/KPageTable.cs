@@ -136,7 +136,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             switch (operation)
             {
                 case MemoryOperation.Map:
-                    _cpuMemory.Map(dstVa, srcPa - DramMemoryMap.DramBase, size);
+                    _cpuMemory.Map(dstVa, (nuint)((ulong)Context.Memory.Pointer + (srcPa - DramMemoryMap.DramBase)), size);
 
                     if (DramMemoryMap.IsHeapPhysicalAddress(srcPa))
                     {
@@ -152,10 +152,12 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                     AddVaRangeToPageList(pagesToClose, dstVa, size / PageSize);
 
+                    bool decRef = DramMemoryMap.IsHeapPhysicalAddress(DramMemoryMap.DramBase + GetDramAddressFromHostAddress(_cpuMemory.GetPhysicalRegions(dstVa, PageSize)[0].hostAddress));
+
                     _cpuMemory.Unmap(dstVa, size);
 
                     // TODO: Get all physical regions.
-                    if (DramMemoryMap.IsHeapPhysicalAddress(DramMemoryMap.DramBase + _cpuMemory.GetPhysicalAddress(dstVa)))
+                    if (decRef)
                     {
                         pagesToClose.DecrementPagesReferenceCount(Context.MemoryManager);
                     }
@@ -235,10 +237,15 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             while (address < start + pagesCount * PageSize)
             {
-                pageList.AddRange(DramMemoryMap.DramBase + _cpuMemory.GetPhysicalAddress(address), 1);
+                pageList.AddRange(DramMemoryMap.DramBase + GetDramAddressFromHostAddress(_cpuMemory.GetPhysicalRegions(address, PageSize)[0].hostAddress), 1);
 
                 address += PageSize;
             }
+        }
+
+        private ulong GetDramAddressFromHostAddress(nuint hostAddress)
+        {
+            return hostAddress - (ulong)Context.Memory.Pointer;
         }
     }
 }
