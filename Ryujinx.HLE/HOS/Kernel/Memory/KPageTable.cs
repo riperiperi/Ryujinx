@@ -89,145 +89,68 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         /// <inheritdoc/>
         protected override KernelResult MapPages(ulong dstVa, ulong pagesCount, ulong srcPa, bool mustAlias, KMemoryPermission permission)
         {
-            return DoMmuOperation(dstVa, pagesCount, srcPa, true, permission, MemoryOperation.Map);
+            _cpuMemory.Map(dstVa, (nuint)((ulong)Context.Memory.Pointer + (srcPa - DramMemoryMap.DramBase)), pagesCount * PageSize);
+
+            if (DramMemoryMap.IsHeapPhysicalAddress(srcPa))
+            {
+                Context.MemoryManager.IncrementPagesReferenceCount(srcPa, pagesCount);
+            }
+
+            return KernelResult.Success;
         }
 
         /// <inheritdoc/>
         protected override KernelResult MapPages(ulong address, KPageList pageList, bool mustAlias, KMemoryPermission permission)
         {
-            return DoMmuOperation(address, pageList.GetPagesCount(), pageList, permission, MemoryOperation.MapList);
+            using var scopedPageList = new KScopedPageList(Context.MemoryManager, pageList);
+
+            ulong currAddr = address;
+
+            foreach (KPageNode pageNode in pageList)
+            {
+                ulong size = pageNode.PagesCount * PageSize;
+
+                _cpuMemory.Map(currAddr, (nuint)((ulong)Context.Memory.Pointer + (pageNode.Address - DramMemoryMap.DramBase)), size);
+
+                currAddr += size;
+            }
+
+            scopedPageList.SignalSuccess();
+
+            return KernelResult.Success;
         }
 
         /// <inheritdoc/>
         protected override KernelResult Unmap(ulong address, ulong pagesCount)
         {
-            return DoMmuOperation(address, pagesCount, 0, false, KMemoryPermission.None, MemoryOperation.Unmap);
+            KPageList pagesToClose = new KPageList();
+
+            AddVaRangeToPageList(pagesToClose, address, pagesCount);
+
+            bool decRef = DramMemoryMap.IsHeapPhysicalAddress(DramMemoryMap.DramBase + GetDramAddressFromHostAddress(_cpuMemory.GetPhysicalRegions(address, PageSize)[0].hostAddress));
+
+            _cpuMemory.Unmap(address, pagesCount * PageSize);
+
+            // TODO: Get all physical regions.
+            if (decRef)
+            {
+                pagesToClose.DecrementPagesReferenceCount(Context.MemoryManager);
+            }
+
+            return KernelResult.Success;
         }
 
         /// <inheritdoc/>
         protected override KernelResult Reprotect(ulong address, ulong pagesCount, KMemoryPermission permission)
         {
-            return DoMmuOperation(address, pagesCount, 0, false, permission, MemoryOperation.Reprotect);
+            // TODO.
+            return KernelResult.Success;
         }
 
         /// <inheritdoc/>
         protected override KernelResult ReprotectWithAttributes(ulong address, ulong pagesCount, KMemoryPermission permission)
         {
-            return DoMmuOperation(address, pagesCount, 0, false, permission, MemoryOperation.ReprotectWithAttributes);
-        }
-
-        private KernelResult DoMmuOperation(
-            ulong dstVa,
-            ulong pagesCount,
-            ulong srcPa,
-            bool map,
-            KMemoryPermission permission,
-            MemoryOperation operation)
-        {
-            if (map != (operation == MemoryOperation.Map))
-            {
-                throw new ArgumentException(nameof(map) + " value is invalid for this operation.");
-            }
-
-            ulong size = pagesCount * PageSize;
-
-            KernelResult result;
-
-            switch (operation)
-            {
-                case MemoryOperation.Map:
-                    _cpuMemory.Map(dstVa, (nuint)((ulong)Context.Memory.Pointer + (srcPa - DramMemoryMap.DramBase)), size);
-
-                    if (DramMemoryMap.IsHeapPhysicalAddress(srcPa))
-                    {
-                        Context.MemoryManager.IncrementPagesReferenceCount(srcPa, pagesCount);
-                    }
-
-                    result = KernelResult.Success;
-
-                    break;
-
-                case MemoryOperation.Unmap:
-                    KPageList pagesToClose = new KPageList();
-
-                    AddVaRangeToPageList(pagesToClose, dstVa, size / PageSize);
-
-                    bool decRef = DramMemoryMap.IsHeapPhysicalAddress(DramMemoryMap.DramBase + GetDramAddressFromHostAddress(_cpuMemory.GetPhysicalRegions(dstVa, PageSize)[0].hostAddress));
-
-                    _cpuMemory.Unmap(dstVa, size);
-
-                    // TODO: Get all physical regions.
-                    if (decRef)
-                    {
-                        pagesToClose.DecrementPagesReferenceCount(Context.MemoryManager);
-                    }
-
-                    result = KernelResult.Success;
-
-                    break;
-
-                case MemoryOperation.Reprotect: result = KernelResult.Success; break;
-                case MemoryOperation.ReprotectWithAttributes: result = KernelResult.Success; break;
-
-                default: throw new ArgumentException($"Invalid operation \"{operation}\".");
-            }
-
-            return result;
-        }
-
-        private KernelResult DoMmuOperation(
-            ulong address,
-            ulong pagesCount,
-            KPageList pageList,
-            KMemoryPermission permission,
-            MemoryOperation operation)
-        {
-            if (operation != MemoryOperation.MapList)
-            {
-                throw new ArgumentException($"Invalid memory operation \"{operation}\" specified.");
-            }
-
-            return MapPagesImpl(address, pageList, permission);
-        }
-
-        private KernelResult MapPagesImpl(ulong address, KPageList pageList, KMemoryPermission permission)
-        {
-            using var scopedPageList = new KScopedPageList(Context.MemoryManager, pageList);
-
-            ulong currAddr = address;
-
-            KernelResult result = KernelResult.Success;
-
-            foreach (KPageNode pageNode in pageList)
-            {
-                result = DoMmuOperation(
-                    currAddr,
-                    pageNode.PagesCount,
-                    pageNode.Address,
-                    true,
-                    permission,
-                    MemoryOperation.Map);
-
-                if (result != KernelResult.Success)
-                {
-                    ulong pagesCount = (address - currAddr) / PageSize;
-
-                    KernelResult unmapResult = Unmap(address, pagesCount);
-                    Debug.Assert(unmapResult == KernelResult.Success);
-
-                    break;
-                }
-
-                currAddr += pageNode.PagesCount * PageSize;
-            }
-
-            if (result != KernelResult.Success)
-            {
-                return result;
-            }
-
-            scopedPageList.SignalSuccess();
-
+            // TODO.
             return KernelResult.Success;
         }
 
