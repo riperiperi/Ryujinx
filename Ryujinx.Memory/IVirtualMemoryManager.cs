@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Ryujinx.Memory.Range;
+using System;
+using System.Collections.Generic;
 
 namespace Ryujinx.Memory
 {
@@ -29,7 +31,7 @@ namespace Ryujinx.Memory
         WritableRegion GetWritableRegion(ulong va, int size);
         ref T GetRef<T>(ulong va) where T : unmanaged;
 
-        (nuint hostAddress, ulong size)[] GetPhysicalRegions(ulong va, ulong size);
+        IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size);
 
         bool IsMapped(ulong va);
         bool IsRangeMapped(ulong va, ulong size);

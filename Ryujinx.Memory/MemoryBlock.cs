@@ -202,7 +202,7 @@ namespace Ryujinx.Memory
         /// <exception cref="ObjectDisposedException">Throw when the memory block has already been disposed</exception>
         /// <exception cref="InvalidMemoryRegionException">Throw when either <paramref name="offset"/> or <paramref name="size"/> are out of range</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public IntPtr GetPointer(ulong offset, int size) => GetPointerInternal(offset, (ulong)size);
+        public nuint GetPointer(ulong offset, ulong size) => (nuint)(ulong)GetPointerInternal(offset, size);
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private IntPtr GetPointerInternal(ulong offset, ulong size)
@@ -235,7 +235,7 @@ namespace Ryujinx.Memory
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe Span<byte> GetSpan(ulong offset, int size)
         {
-            return new Span<byte>((void*)GetPointer(offset, size), size);
+            return new Span<byte>((void*)GetPointerInternal(offset, (ulong)size), size);
         }
 
         /// <summary>
@@ -249,7 +249,7 @@ namespace Ryujinx.Memory
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public unsafe Memory<byte> GetMemory(ulong offset, int size)
         {
-            return new NativeMemoryManager<byte>((byte*)GetPointer(offset, size), size).Memory;
+            return new NativeMemoryManager<byte>((byte*)GetPointerInternal(offset, (ulong)size), size).Memory;
         }
 
         /// <summary>
