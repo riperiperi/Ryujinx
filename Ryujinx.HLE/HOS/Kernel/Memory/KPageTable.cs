@@ -12,29 +12,23 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
     {
         private readonly IVirtualMemoryManager _cpuMemory;
 
+        protected override bool SupportsMemoryAliasing => true;
+
         public KPageTable(KernelContext context, IVirtualMemoryManager cpuMemory) : base(context)
         {
             _cpuMemory = cpuMemory;
         }
 
+        /// <inheritdoc/>
         protected override IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size)
         {
             return _cpuMemory.GetPhysicalRegions(va, size);
         }
 
+        /// <inheritdoc/>
         protected override ReadOnlySpan<byte> GetSpan(ulong va, int size)
         {
             return _cpuMemory.GetSpan(va, size);
-        }
-
-        protected override void SignalMemoryTracking(ulong va, ulong size, bool write)
-        {
-            _cpuMemory.SignalMemoryTracking(va, size, write);
-        }
-
-        protected override void Write(ulong va, ReadOnlySpan<byte> data)
-        {
-            _cpuMemory.Write(va, data);
         }
 
         /// <inheritdoc/>
@@ -92,7 +86,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         }
 
         /// <inheritdoc/>
-        protected override KernelResult MapPages(ulong dstVa, ulong pagesCount, ulong srcPa, bool mustAlias, KMemoryPermission permission)
+        protected override KernelResult MapPages(ulong dstVa, ulong pagesCount, ulong srcPa, KMemoryPermission permission)
         {
             _cpuMemory.Map(dstVa, (nuint)((ulong)Context.Memory.Pointer + (srcPa - DramMemoryMap.DramBase)), pagesCount * PageSize);
 
@@ -105,7 +99,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         }
 
         /// <inheritdoc/>
-        protected override KernelResult MapPages(ulong address, KPageList pageList, bool mustAlias, KMemoryPermission permission)
+        protected override KernelResult MapPages(ulong address, KPageList pageList, KMemoryPermission permission)
         {
             using var scopedPageList = new KScopedPageList(Context.MemoryManager, pageList);
 
@@ -195,16 +189,16 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             return KernelResult.Success;
         }
 
-        protected override void AddVaRangeToPageList(KPageList pageList, ulong start, ulong pagesCount)
+        /// <inheritdoc/>
+        protected override void SignalMemoryTracking(ulong va, ulong size, bool write)
         {
-            ulong address = start;
+            _cpuMemory.SignalMemoryTracking(va, size, write);
+        }
 
-            while (address < start + pagesCount * PageSize)
-            {
-                pageList.AddRange(DramMemoryMap.DramBase + GetDramAddressFromHostAddress(_cpuMemory.GetPhysicalRegions(address, PageSize).First().Address), 1);
-
-                address += PageSize;
-            }
+        /// <inheritdoc/>
+        protected override void Write(ulong va, ReadOnlySpan<byte> data)
+        {
+            _cpuMemory.Write(va, data);
         }
 
         private ulong GetDramAddressFromHostAddress(nuint hostAddress)

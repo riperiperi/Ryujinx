@@ -1,6 +1,8 @@
 ﻿using Ryujinx.HLE.HOS.Kernel.Process;
 using Ryujinx.Memory;
+using Ryujinx.Memory.Range;
 using System;
+using System.Collections.Generic;
 
 namespace Ryujinx.HLE.HOS.Kernel.Memory
 {
@@ -60,6 +62,28 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             else
             {
                 return ref _borrowerMemory.GetRef<T>(_borrowerVa + offset);
+            }
+        }
+
+        public IEnumerable<HostMemoryRange> GetRanges()
+        {
+            if (_borrowerMemory == null)
+            {
+                var ranges = new List<HostMemoryRange>();
+
+                foreach (KPageNode pageNode in _pageList)
+                {
+                    ulong address = pageNode.Address - DramMemoryMap.DramBase;
+                    ulong size = pageNode.PagesCount * KPageTableBase.PageSize;
+
+                    ranges.Add(new HostMemoryRange(_context.Memory.GetPointer(address, size), size));
+                }
+
+                return ranges;
+            }
+            else
+            {
+                return _borrowerMemory.GetPhysicalRegions(_borrowerVa, _size);
             }
         }
 
