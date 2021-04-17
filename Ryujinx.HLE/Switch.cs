@@ -118,7 +118,7 @@ namespace Ryujinx.HLE
 
             Statistics = new PerformanceStatistics();
 
-            Hid = new Hid(this, System.HidBaseAddress);
+            Hid = new Hid(this, System.HidStorage);
             Hid.InitDevices();
 
             Application = new ApplicationLoader(this, fileSystem, contentManager);
