@@ -73,6 +73,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         private MersenneTwister _randomNumberGenerator;
 
+        protected abstract bool SupportsMemoryAliasing { get; }
+
         public KPageTableBase(KernelContext context)
         {
             Context = context;
@@ -359,7 +361,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                     return KernelResult.OutOfResource;
                 }
 
-                KernelResult result = MapPages(address, pageList, mustAlias: true, permission);
+                KernelResult result = MapPages(address, pageList, permission);
 
                 if (result == KernelResult.Success)
                 {
@@ -370,10 +372,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
         }
 
-        public KernelResult UnmapPages(ulong address, KPageList pageList, MemoryState stateExpected)
+        public KernelResult UnmapPages(ulong address, ulong pagesCount, IEnumerable<HostMemoryRange> ranges, MemoryState stateExpected)
         {
-            ulong pagesCount = pageList.GetPagesCount();
-
             ulong size = pagesCount * PageSize;
 
             ulong endAddr = address + size;
@@ -397,11 +397,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             lock (_blockManager)
             {
-                KPageList currentPageList = new KPageList();
+                var currentRanges = GetPhysicalRegions(address, size);
 
-                AddVaRangeToPageList(currentPageList, address, pagesCount);
-
-                if (!currentPageList.IsEqual(pageList))
+                if (!currentRanges.SequenceEqual(ranges))
                 {
                     return KernelResult.InvalidMemRange;
                 }
@@ -496,7 +494,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                 if (paIsValid)
                 {
-                    result = MapPages(address, pagesCount, srcPa, mustAlias: false, permission);
+                    result = MapPages(address, pagesCount, srcPa, permission);
                 }
                 else
                 {
@@ -559,7 +557,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             using var _ = new OnScopeExit(() => pageList.DecrementPagesReferenceCount(Context.MemoryManager));
 
-            return MapPages(address, pageList, mustAlias: false, permission);
+            return MapPages(address, pageList, permission);
         }
 
         public KernelResult MapProcessCodeMemory(ulong dst, ulong src, ulong size)
@@ -740,7 +738,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                         return KernelResult.InvalidMemState;
                     }
 
-                    result = MapPages(_currentHeapAddr, pageList, mustAlias: false, KMemoryPermission.ReadAndWrite);
+                    result = MapPages(_currentHeapAddr, pageList, KMemoryPermission.ReadAndWrite);
 
                     if (result != KernelResult.Success)
                     {
@@ -1211,7 +1209,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                         ulong currentPagesCount = Math.Min(srcPaPages, dstVaPages);
 
-                        MapPages(dstVa, currentPagesCount, srcPa, mustAlias: false, KMemoryPermission.ReadAndWrite);
+                        MapPages(dstVa, currentPagesCount, srcPa, KMemoryPermission.ReadAndWrite);
 
                         dstVa += currentPagesCount * PageSize;
                         srcPa += currentPagesCount * PageSize;
@@ -1635,6 +1633,11 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             bool send,
             out ulong dst)
         {
+            if (!SupportsMemoryAliasing)
+            {
+                throw new NotSupportedException("Memory aliasing not supported, can't map IPC buffers.");
+            }
+
             dst = 0;
 
             lock (_blockManager)
@@ -1754,7 +1757,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                         Context.Memory.ZeroFill(GetDramAddressFromPa(firstPageFillAddress), unusedSizeAfter);
                     }
 
-                    KernelResult result = MapPages(currentVa, 1, dstFirstPagePa, mustAlias: true, permission);
+                    KernelResult result = MapPages(currentVa, 1, dstFirstPagePa, permission);
 
                     if (result != KernelResult.Success)
                     {
@@ -1805,7 +1808,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
                     Context.Memory.ZeroFill(GetDramAddressFromPa(lastPageFillAddr), unusedSizeAfter);
 
-                    KernelResult result = MapPages(currentVa, 1, dstLastPagePa, mustAlias: true, permission);
+                    KernelResult result = MapPages(currentVa, 1, dstLastPagePa, permission);
 
                     if (result != KernelResult.Success)
                     {
@@ -2612,99 +2615,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
         }
 
-        protected abstract IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size);
-
-        protected abstract ReadOnlySpan<byte> GetSpan(ulong va, int size);
-
-        protected abstract void SignalMemoryTracking(ulong va, ulong size, bool write);
-
-        protected abstract void Write(ulong va, ReadOnlySpan<byte> data);
-
-        /// <summary>
-        /// Maps a new memory region with the contents of a existing memory region.
-        /// </summary>
-        /// <param name="src">Source memory region where the data will be taken from</param>
-        /// <param name="dst">Destination memory region to map</param>
-        /// <param name="pagesCount">Number of pages to map</param>
-        /// <param name="oldSrcPermission">Current protection of the source memory region</param>
-        /// <param name="newDstPermission">Desired protection for the destination memory region</param>
-        /// <returns>Result of the mapping operation</returns>
-        protected abstract KernelResult MapMemory(ulong src, ulong dst, ulong pagesCount, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission);
-
-        /// <summary>
-        /// Unmaps a region of memory that was previously mapped with <see cref="MapMemory"/>.
-        /// </summary>
-        /// <param name="dst">Destination memory region to be unmapped</param>
-        /// <param name="src">Source memory region that was originally remapped</param>
-        /// <param name="pagesCount">Number of pages to unmap</param>
-        /// <param name="oldDstPermission">Current protection of the destination memory region</param>
-        /// <param name="newSrcPermission">Desired protection of the source memory region</param>
-        /// <returns>Result of the unmapping operation</returns>
-        protected abstract KernelResult UnmapMemory(ulong dst, ulong src, ulong pagesCount, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission);
-
-        /// <summary>
-        /// Maps a region of memory into the specified physical memory region.
-        /// </summary>
-        /// <param name="dstVa">Destination virtual address that should be mapped</param>
-        /// <param name="pagesCount">Number of pages to map</param>
-        /// <param name="srcPa">Physical address where the pages should be mapped</param>
-        /// <param name="mustAlias">Indicates if using the supplied <paramref name="srcPa"/> is required for correctness</param>
-        /// <param name="permission">Permission of the region to be mapped</param>
-        /// <returns>Result of the mapping operation</returns>
-        /// <exception cref="NotSupportedException"><paramref name="mustAlias"/> is true, but the implementation does not support aliasing</exception>
-        protected abstract KernelResult MapPages(ulong dstVa, ulong pagesCount, ulong srcPa, bool mustAlias, KMemoryPermission permission);
-
-        /// <summary>
-        /// Maps a region of memory into the specified physical memory region.
-        /// </summary>
-        /// <param name="address">Destination virtual address that should be mapped</param>
-        /// <param name="pageList">List of physical memory pages where the pages should be mapped</param>
-        /// <param name="mustAlias">Indicates if using the supplied <paramref name="pageList"/> is required for correctness</param>
-        /// <param name="permission">Permission of the region to be mapped</param>
-        /// <returns>Result of the mapping operation</returns>
-        /// <exception cref="NotSupportedException"><paramref name="mustAlias"/> is true, but the implementation does not support aliasing</exception>
-        protected abstract KernelResult MapPages(ulong address, KPageList pageList, bool mustAlias, KMemoryPermission permission);
-
-        /// <summary>
-        /// Maps a region of memory into the specified host memory ranges.
-        /// </summary>
-        /// <param name="address">Destination virtual address that should be mapped</param>
-        /// <param name="ranges">Ranges of host memory that should be mapped</param>
-        /// <param name="permission">Permission of the region to be mapped</param>
-        /// <returns>Result of the mapping operation</returns>
-        /// <exception cref="NotSupportedException">The implementation does not support memory aliasing</exception>
-        protected abstract KernelResult MapPages(ulong address, IEnumerable<HostMemoryRange> ranges, KMemoryPermission permission);
-
-        /// <summary>
-        /// Unmaps a region of memory that was previously mapped with
-        /// <see cref="MapPages(ulong, ulong, ulong, bool, KMemoryPermission)"/> or
-        /// <see cref="MapPages(ulong, KPageList, bool, KMemoryPermission)"/>.
-        /// </summary>
-        /// <param name="address">Virtual address of the region to unmap</param>
-        /// <param name="pagesCount">Number of pages to unmap</param>
-        /// <returns>Result of the unmapping operation</returns>
-        protected abstract KernelResult Unmap(ulong address, ulong pagesCount);
-
-        /// <summary>
-        /// Changes the permissions of a given virtual memory region.
-        /// </summary>
-        /// <param name="address">Virtual address of the region to have the permission changes</param>
-        /// <param name="pagesCount">Number of pages to have their permissions changed</param>
-        /// <param name="permission">New permission</param>
-        /// <returns>Result of the permission change operation</returns>
-        protected abstract KernelResult Reprotect(ulong address, ulong pagesCount, KMemoryPermission permission);
-
-        /// <summary>
-        /// Changes the permissions of a given virtual memory region.
-        /// </summary>
-        /// <param name="address">Virtual address of the region to have the permission changes</param>
-        /// <param name="pagesCount">Number of pages to have their permissions changed</param>
-        /// <param name="permission">New permission</param>
-        /// <returns>Result of the permission change operation</returns>
-        protected abstract KernelResult ReprotectWithAttributes(ulong address, ulong pagesCount, KMemoryPermission permission);
-
-        protected abstract void AddVaRangeToPageList(KPageList pageList, ulong start, ulong pagesCount);
-
         private static ulong GetDramAddressFromPa(ulong pa)
         {
             return pa - DramMemoryMap.DramBase;
@@ -2767,5 +2677,123 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         {
             return StackRegionStart > address || address + size - 1 > StackRegionEnd - 1;
         }
+
+        /// <summary>
+        /// Gets the physical regions that make up the given virtual address region.
+        /// If any part of the virtual region is unmapped, null is returned.
+        /// </summary>
+        /// <param name="va">Virtual address of the range</param>
+        /// <param name="size">Size of the range</param>
+        /// <returns>Array of physical regions</returns>
+        protected abstract IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size);
+
+        /// <summary>
+        /// Gets a read-only span of data from CPU mapped memory.
+        /// </summary>
+        /// <remarks>
+        /// This may perform a allocation if the data is not contiguous in memory.
+        /// For this reason, the span is read-only, you can't modify the data.
+        /// </remarks>
+        /// <param name="va">Virtual address of the data</param>
+        /// <param name="size">Size of the data</param>
+        /// <param name="tracked">True if read tracking is triggered on the span</param>
+        /// <returns>A read-only span of the data</returns>
+        /// <exception cref="Ryujinx.Memory.InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        protected abstract ReadOnlySpan<byte> GetSpan(ulong va, int size);
+
+        /// <summary>
+        /// Maps a new memory region with the contents of a existing memory region.
+        /// </summary>
+        /// <param name="src">Source memory region where the data will be taken from</param>
+        /// <param name="dst">Destination memory region to map</param>
+        /// <param name="pagesCount">Number of pages to map</param>
+        /// <param name="oldSrcPermission">Current protection of the source memory region</param>
+        /// <param name="newDstPermission">Desired protection for the destination memory region</param>
+        /// <returns>Result of the mapping operation</returns>
+        protected abstract KernelResult MapMemory(ulong src, ulong dst, ulong pagesCount, KMemoryPermission oldSrcPermission, KMemoryPermission newDstPermission);
+
+        /// <summary>
+        /// Unmaps a region of memory that was previously mapped with <see cref="MapMemory"/>.
+        /// </summary>
+        /// <param name="dst">Destination memory region to be unmapped</param>
+        /// <param name="src">Source memory region that was originally remapped</param>
+        /// <param name="pagesCount">Number of pages to unmap</param>
+        /// <param name="oldDstPermission">Current protection of the destination memory region</param>
+        /// <param name="newSrcPermission">Desired protection of the source memory region</param>
+        /// <returns>Result of the unmapping operation</returns>
+        protected abstract KernelResult UnmapMemory(ulong dst, ulong src, ulong pagesCount, KMemoryPermission oldDstPermission, KMemoryPermission newSrcPermission);
+
+        /// <summary>
+        /// Maps a region of memory into the specified physical memory region.
+        /// </summary>
+        /// <param name="dstVa">Destination virtual address that should be mapped</param>
+        /// <param name="pagesCount">Number of pages to map</param>
+        /// <param name="srcPa">Physical address where the pages should be mapped. May be ignored if aliasing is not supported</param>
+        /// <param name="permission">Permission of the region to be mapped</param>
+        /// <returns>Result of the mapping operation</returns>
+        protected abstract KernelResult MapPages(ulong dstVa, ulong pagesCount, ulong srcPa, KMemoryPermission permission);
+
+        /// <summary>
+        /// Maps a region of memory into the specified physical memory region.
+        /// </summary>
+        /// <param name="address">Destination virtual address that should be mapped</param>
+        /// <param name="pageList">List of physical memory pages where the pages should be mapped. May be ignored if aliasing is not supported</param>
+        /// <param name="permission">Permission of the region to be mapped</param>
+        /// <returns>Result of the mapping operation</returns>
+        protected abstract KernelResult MapPages(ulong address, KPageList pageList, KMemoryPermission permission);
+
+        /// <summary>
+        /// Maps a region of memory into the specified host memory ranges.
+        /// </summary>
+        /// <param name="address">Destination virtual address that should be mapped</param>
+        /// <param name="ranges">Ranges of host memory that should be mapped</param>
+        /// <param name="permission">Permission of the region to be mapped</param>
+        /// <returns>Result of the mapping operation</returns>
+        /// <exception cref="NotSupportedException">The implementation does not support memory aliasing</exception>
+        protected abstract KernelResult MapPages(ulong address, IEnumerable<HostMemoryRange> ranges, KMemoryPermission permission);
+
+        /// <summary>
+        /// Unmaps a region of memory that was previously mapped with
+        /// <see cref="MapPages(ulong, ulong, ulong, bool, KMemoryPermission)"/> or
+        /// <see cref="MapPages(ulong, KPageList, bool, KMemoryPermission)"/>.
+        /// </summary>
+        /// <param name="address">Virtual address of the region to unmap</param>
+        /// <param name="pagesCount">Number of pages to unmap</param>
+        /// <returns>Result of the unmapping operation</returns>
+        protected abstract KernelResult Unmap(ulong address, ulong pagesCount);
+
+        /// <summary>
+        /// Changes the permissions of a given virtual memory region.
+        /// </summary>
+        /// <param name="address">Virtual address of the region to have the permission changes</param>
+        /// <param name="pagesCount">Number of pages to have their permissions changed</param>
+        /// <param name="permission">New permission</param>
+        /// <returns>Result of the permission change operation</returns>
+        protected abstract KernelResult Reprotect(ulong address, ulong pagesCount, KMemoryPermission permission);
+
+        /// <summary>
+        /// Changes the permissions of a given virtual memory region.
+        /// </summary>
+        /// <param name="address">Virtual address of the region to have the permission changes</param>
+        /// <param name="pagesCount">Number of pages to have their permissions changed</param>
+        /// <param name="permission">New permission</param>
+        /// <returns>Result of the permission change operation</returns>
+        protected abstract KernelResult ReprotectWithAttributes(ulong address, ulong pagesCount, KMemoryPermission permission);
+
+        /// <summary>
+        /// Alerts the memory tracking that a given region has been read from or written to.
+        /// This should be called before read/write is performed.
+        /// </summary>
+        /// <param name="va">Virtual address of the region</param>
+        /// <param name="size">Size of the region</param>
+        protected abstract void SignalMemoryTracking(ulong va, ulong size, bool write);
+
+        /// <summary>
+        /// Writes data to CPU mapped memory, with write tracking.
+        /// </summary>
+        /// <param name="va">Virtual address to write the data into</param>
+        /// <param name="data">Data to be written</param>
+        /// <exception cref="Ryujinx.Memory.InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        protected abstract void Write(ulong va, ReadOnlySpan<byte> data);
     }
 }

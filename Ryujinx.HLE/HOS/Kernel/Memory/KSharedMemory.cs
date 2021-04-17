@@ -62,12 +62,16 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             ulong pagesCountRounded = BitUtils.DivRoundUp(size, KPageTableBase.PageSize);
 
             var pageList = _storage.GetPageList();
-            if (pageList.GetPagesCount() != pagesCountRounded)
+            ulong pagesCount = pageList.GetPagesCount();
+
+            if (pagesCount != pagesCountRounded)
             {
                 return KernelResult.InvalidSize;
             }
 
-            return memoryManager.UnmapPages(address, pageList, MemoryState.SharedMemory);
+            var ranges = _storage.GetRanges();
+
+            return memoryManager.UnmapPages(address, pagesCount * KPageTableBase.PageSize, ranges, MemoryState.SharedMemory);
         }
     }
 }
