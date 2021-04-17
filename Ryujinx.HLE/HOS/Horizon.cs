@@ -102,7 +102,7 @@ namespace Ryujinx.HLE.HOS
 
         public int GlobalAccessLogMode { get; set; }
 
-        internal ulong HidBaseAddress { get; private set; }
+        internal SharedMemoryStorage HidStorage { get; private set; }
 
         internal NvHostSyncpt HostSyncpoint { get; private set; }
 
@@ -134,31 +134,36 @@ namespace Ryujinx.HLE.HOS
             ulong iirsPa = region.Address + HidSize + FontSize;
             ulong timePa = region.Address + HidSize + FontSize + IirsSize;
 
-            HidBaseAddress = hidPa - DramMemoryMap.DramBase;
-
             KPageList hidPageList  = new KPageList();
             KPageList fontPageList = new KPageList();
             KPageList iirsPageList = new KPageList();
             KPageList timePageList = new KPageList();
 
-            hidPageList .AddRange(hidPa,  HidSize  / KPageTableBase.PageSize);
+            hidPageList.AddRange(hidPa,  HidSize  / KPageTableBase.PageSize);
             fontPageList.AddRange(fontPa, FontSize / KPageTableBase.PageSize);
             iirsPageList.AddRange(iirsPa, IirsSize / KPageTableBase.PageSize);
             timePageList.AddRange(timePa, TimeSize / KPageTableBase.PageSize);
 
-            HidSharedMem  = new KSharedMemory(KernelContext, hidPageList,  0, 0, KMemoryPermission.Read);
-            FontSharedMem = new KSharedMemory(KernelContext, fontPageList, 0, 0, KMemoryPermission.Read);
-            IirsSharedMem = new KSharedMemory(KernelContext, iirsPageList, 0, 0, KMemoryPermission.Read);
+            var hidStorage = new SharedMemoryStorage(KernelContext, hidPageList);
+            var fontStorage = new SharedMemoryStorage(KernelContext, fontPageList);
+            var iirsStorage = new SharedMemoryStorage(KernelContext, iirsPageList);
+            var timeStorage = new SharedMemoryStorage(KernelContext, timePageList);
 
-            KSharedMemory timeSharedMemory = new KSharedMemory(KernelContext, timePageList, 0, 0, KMemoryPermission.Read);
+            HidStorage = hidStorage;
 
-            TimeServiceManager.Instance.Initialize(device, this, timeSharedMemory, timePa - DramMemoryMap.DramBase, TimeSize);
+            HidSharedMem  = new KSharedMemory(KernelContext, hidStorage,  0, 0, KMemoryPermission.Read);
+            FontSharedMem = new KSharedMemory(KernelContext, fontStorage, 0, 0, KMemoryPermission.Read);
+            IirsSharedMem = new KSharedMemory(KernelContext, iirsStorage, 0, 0, KMemoryPermission.Read);
+
+            KSharedMemory timeSharedMemory = new KSharedMemory(KernelContext, timeStorage, 0, 0, KMemoryPermission.Read);
+
+            TimeServiceManager.Instance.Initialize(device, this, timeSharedMemory, timeStorage, TimeSize);
 
             AppletState = new AppletStateMgr(this);
 
             AppletState.SetFocus(true);
 
-            Font = new SharedFontManager(device, fontPa - DramMemoryMap.DramBase);
+            Font = new SharedFontManager(device, fontStorage);
 
             VsyncEvent = new KEvent(KernelContext);
 

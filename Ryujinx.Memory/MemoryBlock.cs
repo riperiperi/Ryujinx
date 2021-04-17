@@ -7,7 +7,7 @@ namespace Ryujinx.Memory
     /// <summary>
     /// Represents a block of contiguous physical guest memory.
     /// </summary>
-    public sealed class MemoryBlock : IDisposable
+    public sealed class MemoryBlock : IWritableBlock, IDisposable
     {
         private IntPtr _pointer;
 
