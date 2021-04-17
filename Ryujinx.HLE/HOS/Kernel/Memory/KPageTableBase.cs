@@ -1,6 +1,7 @@
 using Ryujinx.Common;
 using Ryujinx.HLE.HOS.Kernel.Common;
 using Ryujinx.HLE.HOS.Kernel.Process;
+using Ryujinx.Memory.Range;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -2638,9 +2639,12 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
         }
 
-        protected abstract void SignalMemoryTracking(ulong va, ulong size, bool write);
+        protected abstract IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size);
 
         protected abstract ReadOnlySpan<byte> GetSpan(ulong va, int size);
+
+        protected abstract void SignalMemoryTracking(ulong va, ulong size, bool write);
+
         protected abstract void Write(ulong va, ReadOnlySpan<byte> data);
 
         /// <summary>
@@ -2687,6 +2691,16 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         /// <returns>Result of the mapping operation</returns>
         /// <exception cref="NotSupportedException"><paramref name="mustAlias"/> is true, but the implementation does not support aliasing</exception>
         protected abstract KernelResult MapPages(ulong address, KPageList pageList, bool mustAlias, KMemoryPermission permission);
+
+        /// <summary>
+        /// Maps a region of memory into the specified host memory ranges.
+        /// </summary>
+        /// <param name="address">Destination virtual address that should be mapped</param>
+        /// <param name="ranges">Ranges of host memory that should be mapped</param>
+        /// <param name="permission">Permission of the region to be mapped</param>
+        /// <returns>Result of the mapping operation</returns>
+        /// <exception cref="NotSupportedException">The implementation does not support memory aliasing</exception>
+        protected abstract KernelResult MapPages(ulong address, IEnumerable<HostMemoryRange> ranges, KMemoryPermission permission);
 
         /// <summary>
         /// Unmaps a region of memory that was previously mapped with

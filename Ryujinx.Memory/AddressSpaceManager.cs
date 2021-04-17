@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ryujinx.Memory.Range;
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -305,7 +306,7 @@ namespace Ryujinx.Memory
         /// <param name="va">Virtual address of the range</param>
         /// <param name="size">Size of the range</param>
         /// <returns>Array of physical regions</returns>
-        public (nuint hostAddress, ulong size)[] GetPhysicalRegions(ulong va, ulong size)
+        public IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size)
         {
             if (!ValidateAddress(va) || !ValidateAddressAndSize(va, size))
             {
@@ -314,7 +315,7 @@ namespace Ryujinx.Memory
 
             int pages = GetPagesCount(va, (uint)size, out va);
 
-            var regions = new List<(nuint, ulong)>();
+            var regions = new List<HostMemoryRange>();
 
             nuint regionStart = GetHostAddress(va);
             ulong regionSize = PageSize;
@@ -330,7 +331,7 @@ namespace Ryujinx.Memory
 
                 if (GetHostAddress(va) + PageSize != newHostAddress)
                 {
-                    regions.Add((regionStart, regionSize));
+                    regions.Add(new HostMemoryRange(regionStart, regionSize));
                     regionStart = newHostAddress;
                     regionSize = 0;
                 }
@@ -339,9 +340,9 @@ namespace Ryujinx.Memory
                 regionSize += PageSize;
             }
 
-            regions.Add((regionStart, regionSize));
+            regions.Add(new HostMemoryRange(regionStart, regionSize));
 
-            return regions.ToArray();
+            return regions;
         }
 
         private void ReadImpl(ulong va, Span<byte> data)
