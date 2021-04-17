@@ -113,7 +113,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         {
             lock (_blocks)
             {
-                return AllocatePagesContiguousImpl(pagesCount, backwards);
+                ulong address = AllocatePagesContiguousImpl(pagesCount, backwards);
+
+                if (address != 0)
+                {
+                    IncrementPagesReferenceCount(address, pagesCount);
+                }
+
+                return address;
             }
         }
 

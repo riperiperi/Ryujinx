@@ -138,7 +138,6 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 if (pa != ulong.MaxValue)
                 {
                     pa += DramMemoryMap.DramBase;
-
                     if (DramMemoryMap.IsHeapPhysicalAddress(pa))
                     {
                         Context.MemoryManager.IncrementPagesReferenceCount(pa, size / PageSize);
