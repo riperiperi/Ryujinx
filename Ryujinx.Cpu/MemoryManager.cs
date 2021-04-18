@@ -14,7 +14,7 @@ namespace Ryujinx.Cpu
     /// <summary>
     /// Represents a CPU memory manager.
     /// </summary>
-    public sealed class MemoryManager : IMemoryManager, IVirtualMemoryManager, IWritableBlock, IDisposable
+    public sealed class MemoryManager : IMemoryManager, IVirtualMemoryManagerTracked, IWritableBlock, IDisposable
     {
         public const int PageBits = 12;
         public const int PageSize = 1 << PageBits;
@@ -39,6 +39,8 @@ namespace Ryujinx.Cpu
         /// Page table base pointer.
         /// </summary>
         public IntPtr PageTablePointer => _pageTable.Pointer;
+
+        public MemoryManagerType Type => MemoryManagerType.SoftwarePageTable;
 
         public MemoryTracking Tracking { get; }
 

@@ -28,9 +28,10 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             foreach (KPageNode pageNode in _pageList)
             {
+                ulong address = pageNode.Address - DramMemoryMap.DramBase;
                 ulong size = pageNode.PagesCount * KPageTableBase.PageSize;
 
-                dstProcess.CpuMemory.Write(va + currentOffset, _context.Memory.GetSpan(pageNode.Address + currentOffset, (int)size));
+                dstProcess.CpuMemory.Write(va + currentOffset, _context.Memory.GetSpan(address + currentOffset, (int)size));
 
                 currentOffset += size;
             }

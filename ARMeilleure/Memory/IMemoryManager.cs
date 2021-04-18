@@ -8,6 +8,8 @@ namespace ARMeilleure.Memory
 
         IntPtr PageTablePointer { get; }
 
+        MemoryManagerType Type { get; }
+
         T Read<T>(ulong va) where T : unmanaged;
         T ReadTracked<T>(ulong va) where T : unmanaged;
         void Write<T>(ulong va, T value) where T : unmanaged;

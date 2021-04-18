@@ -45,9 +45,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </remarks>
         private BufferModifiedRangeList _modifiedRanges = null;
 
-        private CpuMultiRegionHandle _memoryTrackingGranular;
-
-        private CpuRegionHandle _memoryTracking;
+        private readonly CpuMultiRegionHandle _memoryTrackingGranular;
+        private readonly CpuRegionHandle _memoryTracking;
 
         private readonly RegionSignal _externalFlushDelegate;
         private readonly Action<ulong, ulong> _loadDelegate;
