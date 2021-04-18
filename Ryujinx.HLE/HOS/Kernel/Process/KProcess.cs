@@ -1055,10 +1055,17 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
             // The GPU shouldn't depend on the CPU memory manager at all.
             if (flags.HasFlag(ProcessCreationFlags.IsApplication))
             {
-                KernelContext.Device.Gpu.SetVmm((MemoryManager)CpuMemory);
+                KernelContext.Device.Gpu.SetVmm((IVirtualMemoryManagerTracked)CpuMemory);
             }
 
-            MemoryManager = new KPageTable(KernelContext, CpuMemory);
+            if (Context.AddressSpace is MemoryManagerHostMapped)
+            {
+                MemoryManager = new KPageTableHostMapped(KernelContext, CpuMemory);
+            }
+            else
+            {
+                MemoryManager = new KPageTable(KernelContext, CpuMemory);
+            }
         }
 
         private bool InvalidAccessHandler(ulong va)

@@ -12,7 +12,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
     {
         private readonly IVirtualMemoryManager _cpuMemory;
 
-        protected override bool SupportsMemoryAliasing => true;
+        public override bool SupportsMemoryAliasing => true;
 
         public KPageTable(KernelContext context, IVirtualMemoryManager cpuMemory) : base(context)
         {
@@ -88,7 +88,8 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         /// <inheritdoc/>
         protected override KernelResult MapPages(ulong dstVa, ulong pagesCount, ulong srcPa, KMemoryPermission permission)
         {
-            _cpuMemory.Map(dstVa, (nuint)((ulong)Context.Memory.Pointer + (srcPa - DramMemoryMap.DramBase)), pagesCount * PageSize);
+            ulong size = pagesCount * PageSize;
+            _cpuMemory.Map(dstVa, Context.Memory.GetPointer(srcPa - DramMemoryMap.DramBase, size), size);
 
             if (DramMemoryMap.IsHeapPhysicalAddress(srcPa))
             {

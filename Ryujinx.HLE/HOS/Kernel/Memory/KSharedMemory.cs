@@ -50,7 +50,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 return KernelResult.InvalidPermission;
             }
 
-            return memoryManager.MapPages(address, pageList, MemoryState.SharedMemory, permission);
+            KernelResult result = memoryManager.MapPages(address, pageList, MemoryState.SharedMemory, permission);
+
+            if (result == KernelResult.Success && !memoryManager.SupportsMemoryAliasing)
+            {
+                _storage.Borrow(process, address);
+            }
+
+            return result;
         }
 
         public KernelResult UnmapFromProcess(

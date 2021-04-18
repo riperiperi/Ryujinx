@@ -43,6 +43,11 @@ namespace Ryujinx.Memory
             return Syscall.mprotect(address, size, MmapProts.PROT_READ | MmapProts.PROT_WRITE) == 0;
         }
 
+        public static bool Decommit(IntPtr address, ulong size)
+        {
+            return Syscall.mprotect(address, size, MmapProts.PROT_NONE) == 0;
+        }
+
         public static bool Reprotect(IntPtr address, ulong size, MemoryPermission permission)
         {
             return Syscall.mprotect(address, size, GetProtection(permission)) == 0;

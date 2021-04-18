@@ -79,6 +79,11 @@ namespace Ryujinx.Memory
             return VirtualAlloc(location, size, AllocationType.Commit, MemoryProtection.ReadWrite) != IntPtr.Zero;
         }
 
+        public static bool Decommit(IntPtr location, IntPtr size)
+        {
+            return VirtualFree(location, size, AllocationType.Decommit);
+        }
+
         public static bool Reprotect(IntPtr address, IntPtr size, MemoryPermission permission)
         {
             return VirtualProtect(address, size, GetProtection(permission), out _);

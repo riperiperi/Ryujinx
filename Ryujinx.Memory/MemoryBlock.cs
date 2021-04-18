@@ -57,6 +57,20 @@ namespace Ryujinx.Memory
         }
 
         /// <summary>
+        /// Decommits a region of memory that has previously been reserved and optionally comitted.
+        /// This can be used to free previously allocated memory on demand.
+        /// </summary>
+        /// <param name="offset">Starting offset of the range to be decommitted</param>
+        /// <param name="size">Size of the range to be decommitted</param>
+        /// <returns>True if the operation was successful, false otherwise</returns>
+        /// <exception cref="ObjectDisposedException">Throw when the memory block has already been disposed</exception>
+        /// <exception cref="InvalidMemoryRegionException">Throw when either <paramref name="offset"/> or <paramref name="size"/> are out of range</exception>
+        public bool Decommit(ulong offset, ulong size)
+        {
+            return MemoryManagement.Decommit(GetPointerInternal(offset, size), size);
+        }
+
+        /// <summary>
         /// Reprotects a region of memory.
         /// </summary>
         /// <param name="offset">Starting offset of the range to be reprotected</param>
@@ -250,6 +264,19 @@ namespace Ryujinx.Memory
         public unsafe Memory<byte> GetMemory(ulong offset, int size)
         {
             return new NativeMemoryManager<byte>((byte*)GetPointerInternal(offset, (ulong)size), size).Memory;
+        }
+
+        /// <summary>
+        /// Gets a writable region of a given memory block region.
+        /// </summary>
+        /// <param name="offset">Start offset of the memory region</param>
+        /// <param name="size">Size in bytes of the region</param>
+        /// <returns>Writable region of the memory region</returns>
+        /// <exception cref="ObjectDisposedException">Throw when the memory block has already been disposed</exception>
+        /// <exception cref="InvalidMemoryRegionException">Throw when either <paramref name="offset"/> or <paramref name="size"/> are out of range</exception>
+        public WritableRegion GetWritableRegion(ulong offset, int size)
+        {
+            return new WritableRegion(this, offset, GetMemory(offset, size));
         }
 
         /// <summary>

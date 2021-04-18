@@ -73,7 +73,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
         private MersenneTwister _randomNumberGenerator;
 
-        protected abstract bool SupportsMemoryAliasing { get; }
+        public abstract bool SupportsMemoryAliasing { get; }
 
         public KPageTableBase(KernelContext context)
         {
@@ -2753,9 +2753,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         protected abstract KernelResult MapPages(ulong address, IEnumerable<HostMemoryRange> ranges, KMemoryPermission permission);
 
         /// <summary>
-        /// Unmaps a region of memory that was previously mapped with
-        /// <see cref="MapPages(ulong, ulong, ulong, bool, KMemoryPermission)"/> or
-        /// <see cref="MapPages(ulong, KPageList, bool, KMemoryPermission)"/>.
+        /// Unmaps a region of memory that was previously mapped with one of the page mapping methods.
         /// </summary>
         /// <param name="address">Virtual address of the region to unmap</param>
         /// <param name="pagesCount">Number of pages to unmap</param>

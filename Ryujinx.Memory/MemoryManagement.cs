@@ -62,6 +62,25 @@ namespace Ryujinx.Memory
             }
         }
 
+        public static bool Decommit(IntPtr address, ulong size)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                IntPtr sizeNint = new IntPtr((long)size);
+
+                return MemoryManagementWindows.Decommit(address, sizeNint);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                     RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return MemoryManagementUnix.Decommit(address, size);
+            }
+            else
+            {
+                throw new PlatformNotSupportedException();
+            }
+        }
+
         public static void Reprotect(IntPtr address, ulong size, MemoryPermission permission)
         {
             bool result;

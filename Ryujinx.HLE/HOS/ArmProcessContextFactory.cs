@@ -1,6 +1,5 @@
 ﻿using Ryujinx.Cpu;
 using Ryujinx.HLE.HOS.Kernel.Process;
-using Ryujinx.Memory;
 
 namespace Ryujinx.HLE.HOS
 {
@@ -8,7 +7,8 @@ namespace Ryujinx.HLE.HOS
     {
         public IProcessContext Create(ulong addressSpaceSize, InvalidAccessHandler invalidAccessHandler)
         {
-            return new ArmProcessContext(new MemoryManager(addressSpaceSize, invalidAccessHandler));
+            return new ArmProcessContext<MemoryManagerHostMapped>(new MemoryManagerHostMapped(addressSpaceSize, invalidAccessHandler));
+            // return new ArmProcessContext<MemoryManager>(new MemoryManager(addressSpaceSize, invalidAccessHandler));
         }
     }
 }
