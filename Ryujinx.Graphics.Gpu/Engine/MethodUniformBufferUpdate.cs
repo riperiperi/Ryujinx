@@ -1,3 +1,4 @@
+using Ryujinx.Graphics.Gpu.Memory;
 using Ryujinx.Graphics.Gpu.State;
 using System;
 using System.Runtime.InteropServices;
@@ -6,6 +7,31 @@ namespace Ryujinx.Graphics.Gpu.Engine
 {
     partial class Methods
     {
+        private const int MaxUboSize = 4096;
+
+        private Memory.Buffer _lastWrittenUb;
+        private ulong _beginAddress = 0;
+        private ulong _beginCpuAddress = 0;
+        private ulong _followUpAddress = 0;
+        private int[] _data = new int[MaxUboSize];
+        private int _intCount = 0;
+
+        /// <summary>
+        /// Flushes any queued ubo updates.
+        /// </summary>
+        private void FlushUboUpdate()
+        {
+            if (_lastWrittenUb != null)
+            {
+                Span<byte> data = MemoryMarshal.Cast<int, byte>(new Span<int>(_data, 0, _intCount));
+                _context.PhysicalMemory.WriteUntracked(_beginCpuAddress, data);
+                _lastWrittenUb.SetData(_beginCpuAddress, data);
+
+                _followUpAddress = 0;
+                _lastWrittenUb = null;
+            }
+        }
+
         /// <summary>
         /// Updates the uniform buffer data with inline data.
         /// </summary>
@@ -15,11 +41,26 @@ namespace Ryujinx.Graphics.Gpu.Engine
         {
             var uniformBuffer = state.Get<UniformBufferState>(MethodOffset.UniformBufferState);
 
-            _context.MemoryManager.Write(uniformBuffer.Address.Pack() + (uint)uniformBuffer.Offset, argument);
+            ulong address = uniformBuffer.Address.Pack() + (uint)uniformBuffer.Offset;
+
+            ulong endAddress = address + 4;
+
+            if (_followUpAddress != address || !_lastWrittenUb.OverlapsWith(_beginAddress, endAddress) || _intCount + 1 >= MaxUboSize)
+            {
+                FlushUboUpdate();
+
+                _followUpAddress = address;
+                _intCount = 0;
+
+                UboCacheEntry entry = BufferManager.TranslateCreateAndGetUbo(address, 4);
+                _beginCpuAddress = entry.Address;
+                _lastWrittenUb = entry.Buffer;
+            }
+
+            _followUpAddress = endAddress;
+            _data[_intCount++] = argument;
 
             state.SetUniformBufferOffset(uniformBuffer.Offset + 4);
-
-            _context.AdvanceSequence();
         }
 
         /// <summary>
@@ -31,11 +72,30 @@ namespace Ryujinx.Graphics.Gpu.Engine
         {
             var uniformBuffer = state.Get<UniformBufferState>(MethodOffset.UniformBufferState);
 
-            _context.MemoryManager.Write(uniformBuffer.Address.Pack() + (uint)uniformBuffer.Offset, MemoryMarshal.Cast<int, byte>(data));
+            ulong address = uniformBuffer.Address.Pack() + (uint)uniformBuffer.Offset;
+
+            ulong size = (ulong)data.Length * 4;
+
+            ulong endAddress = address + size;
+
+            if (_followUpAddress != address || !_lastWrittenUb.OverlapsWith(_beginAddress, endAddress) || _intCount + data.Length >= MaxUboSize)
+            {
+                FlushUboUpdate();
+
+                _beginAddress = address;
+                _followUpAddress = address;
+                _intCount = 0;
+
+                UboCacheEntry entry = BufferManager.TranslateCreateAndGetUbo(address, size);
+                _beginCpuAddress = entry.Address;
+                _lastWrittenUb = entry.Buffer;
+            }
+
+            _followUpAddress = endAddress;
+            data.CopyTo(new Span<int>(_data, _intCount, data.Length));
+            _intCount += data.Length;
 
             state.SetUniformBufferOffset(uniformBuffer.Offset + data.Length * 4);
-
-            _context.AdvanceSequence();
         }
     }
 }

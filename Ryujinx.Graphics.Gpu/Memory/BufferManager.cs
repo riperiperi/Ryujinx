@@ -114,6 +114,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
 
         private bool _rebind;
 
+        private Dictionary<ulong, UboCacheEntry> _uboCache;
+
         /// <summary>
         /// Creates a new instance of the buffer manager.
         /// </summary>
@@ -143,6 +145,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
             }
 
             _bufferTextures = new List<BufferTextureBinding>();
+
+            _uboCache = new Dictionary<ulong, UboCacheEntry>();
         }
 
         /// <summary>
@@ -464,6 +468,21 @@ namespace Ryujinx.Graphics.Gpu.Memory
             }
 
             CreateBufferAligned(alignedAddress, alignedEndAddress - alignedAddress);
+        }
+
+        public UboCacheEntry TranslateCreateAndGetUbo(ulong va, ulong size)
+        {
+            UboCacheEntry result;
+
+            if (!_uboCache.TryGetValue(va, out result) || result.UnmappedSequence != result.Buffer.UnmappedSequence)
+            {
+                ulong address = TranslateAndCreateBuffer(va, size);
+                result = new UboCacheEntry(address, GetBuffer(address, size));
+
+                _uboCache[va] = result;
+            }
+
+            return result;
         }
 
         /// <summary>

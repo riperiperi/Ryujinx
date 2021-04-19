@@ -36,6 +36,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
         public ulong EndAddress => Address + Size;
 
         /// <summary>
+        /// Increments when the buffer is (partially) unmapped or disposed.
+        /// </summary>
+        public int UnmappedSequence { get; private set; }
+
+        /// <summary>
         /// Ranges of the buffer that have been modified on the GPU.
         /// Ranges defined here cannot be updated from CPU until a CPU waiting sync point is reached.
         /// Then, write tracking will signal, wait for GPU sync (generated at the syncpoint) and flush these regions.
@@ -316,6 +321,18 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
+        /// Set a region of the buffer directly.
+        /// </summary>
+        /// <param name="mAddress">Start address of the modified region</param>
+        /// <param name="data">Data to write</param>
+        public void SetData(ulong mAddress, ReadOnlySpan<byte> data)
+        {
+            int offset = (int)(mAddress - Address);
+
+            _context.Renderer.SetBufferData(Handle, offset, data);
+        }
+
+        /// <summary>
         /// Performs copy of all the buffer data from one buffer to another.
         /// </summary>
         /// <param name="destination">The destination buffer to copy the data into</param>
@@ -384,6 +401,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
         public void Unmapped(ulong address, ulong size)
         {
             _modifiedRanges?.Clear(address, size);
+
+            UnmappedSequence++;
         }
 
         /// <summary>
@@ -397,6 +416,8 @@ namespace Ryujinx.Graphics.Gpu.Memory
             _memoryTracking?.Dispose();
 
             _context.Renderer.DeleteBuffer(Handle);
+
+            UnmappedSequence++;
         }
     }
 }
