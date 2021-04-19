@@ -161,7 +161,7 @@ namespace Ryujinx.Cpu
 
         public IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size)
         {
-            return new HostMemoryRange[] { new HostMemoryRange(_addressSpace.GetPointer(va, size), size) };
+            return new HostMemoryRange[] { new HostMemoryRange(_addressSpaceMirror.GetPointer(va, size), size) };
         }
 
         public void SignalMemoryTracking(ulong va, ulong size, bool write)
