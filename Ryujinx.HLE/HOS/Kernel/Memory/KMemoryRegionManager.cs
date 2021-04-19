@@ -109,7 +109,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             }
         }
 
-        public ulong AllocatePagesContiguous(ulong pagesCount, bool backwards)
+        public ulong AllocatePagesContiguous(KernelContext context, ulong pagesCount, bool backwards)
         {
             lock (_blocks)
             {
@@ -118,6 +118,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 if (address != 0)
                 {
                     IncrementPagesReferenceCount(address, pagesCount);
+                    context.Memory.Commit(address - DramMemoryMap.DramBase, pagesCount * KPageTableBase.PageSize);
                 }
 
                 return address;

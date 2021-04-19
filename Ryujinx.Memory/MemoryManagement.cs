@@ -123,5 +123,55 @@ namespace Ryujinx.Memory
                 throw new PlatformNotSupportedException();
             }
         }
+
+        public static IntPtr CreateSharedMemory(ulong size, bool reserve)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                IntPtr sizeNint = new IntPtr((long)size);
+
+                return MemoryManagementWindows.CreateSharedMemory(sizeNint, reserve);
+            }
+            else
+            {
+                throw new PlatformNotSupportedException();
+            }
+        }
+
+        public static void DestroySharedMemory(IntPtr handle)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                MemoryManagementWindows.DestroySharedMemory(handle);
+            }
+            else
+            {
+                throw new PlatformNotSupportedException();
+            }
+        }
+
+        public static IntPtr MapSharedMemory(IntPtr handle)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return MemoryManagementWindows.MapSharedMemory(handle);
+            }
+            else
+            {
+                throw new PlatformNotSupportedException();
+            }
+        }
+
+        public static void UnmapSharedMemory(IntPtr address)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                MemoryManagementWindows.UnmapSharedMemory(address);
+            }
+            else
+            {
+                throw new PlatformNotSupportedException();
+            }
+        }
     }
 }

@@ -1703,7 +1703,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 // If not, allocate a new page and copy the unaligned chunck.
                 if (addressTruncated < addressRounded)
                 {
-                    dstFirstPagePa = GetMemoryRegionManager().AllocatePagesContiguous(1, _aslrDisabled);
+                    dstFirstPagePa = GetMemoryRegionManager().AllocatePagesContiguous(Context, 1, _aslrDisabled);
 
                     if (dstFirstPagePa == 0)
                     {
@@ -1717,7 +1717,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
                 // If not, allocate a new page and copy the unaligned chunck.
                 if (endAddrTruncated < endAddrRounded && (addressTruncated == addressRounded || addressTruncated < endAddrTruncated))
                 {
-                    dstLastPagePa = GetMemoryRegionManager().AllocatePagesContiguous(1, _aslrDisabled);
+                    dstLastPagePa = GetMemoryRegionManager().AllocatePagesContiguous(Context, 1, _aslrDisabled);
 
                     if (dstLastPagePa == 0)
                     {
