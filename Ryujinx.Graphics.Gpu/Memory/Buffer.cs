@@ -135,6 +135,17 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
+        /// Checks if a given range is fully contained in the buffer.
+        /// </summary>
+        /// <param name="address">Start address of the range</param>
+        /// <param name="size">Size in bytes of the range</param>
+        /// <returns>True if the range is contained, false otherwise</returns>
+        public bool FullyContains(ulong address, ulong size)
+        {
+            return address >= Address && address + size <= EndAddress;
+        }
+
+        /// <summary>
         /// Performs guest to host memory synchronization of the buffer data.
         /// </summary>
         /// <remarks>

@@ -43,9 +43,9 @@ namespace Ryujinx.Graphics.Gpu.Engine
 
             ulong address = uniformBuffer.Address.Pack() + (uint)uniformBuffer.Offset;
 
-            ulong endAddress = address + 4;
+            ulong currentCpuAddress = _beginCpuAddress + (ulong)_intCount * 4;
 
-            if (_followUpAddress != address || !_lastWrittenUb.OverlapsWith(_beginAddress, endAddress) || _intCount + 1 >= MaxUboSize)
+            if (_followUpAddress != address || !_lastWrittenUb.FullyContains(currentCpuAddress, 4) || _intCount + 1 >= MaxUboSize)
             {
                 FlushUboUpdate();
 
@@ -57,7 +57,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
                 _lastWrittenUb = entry.Buffer;
             }
 
-            _followUpAddress = endAddress;
+            _followUpAddress = address + 4;
             _data[_intCount++] = argument;
 
             state.SetUniformBufferOffset(uniformBuffer.Offset + 4);
@@ -76,9 +76,9 @@ namespace Ryujinx.Graphics.Gpu.Engine
 
             ulong size = (ulong)data.Length * 4;
 
-            ulong endAddress = address + size;
+            ulong currentCpuAddress = _beginCpuAddress + (ulong)_intCount * 4;
 
-            if (_followUpAddress != address || !_lastWrittenUb.OverlapsWith(_beginAddress, endAddress) || _intCount + data.Length >= MaxUboSize)
+            if (_followUpAddress != address || !_lastWrittenUb.FullyContains(currentCpuAddress, size) || _intCount + data.Length >= MaxUboSize)
             {
                 FlushUboUpdate();
 
@@ -91,7 +91,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
                 _lastWrittenUb = entry.Buffer;
             }
 
-            _followUpAddress = endAddress;
+            _followUpAddress = address + size;
             data.CopyTo(new Span<int>(_data, _intCount, data.Length));
             _intCount += data.Length;
 
