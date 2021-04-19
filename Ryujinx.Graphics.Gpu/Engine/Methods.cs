@@ -302,6 +302,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
         /// </summary>
         private void CommitBindings()
         {
+            FlushUboUpdate();
             UpdateStorageBuffers();
 
             TextureManager.CommitGraphicsBindings();
