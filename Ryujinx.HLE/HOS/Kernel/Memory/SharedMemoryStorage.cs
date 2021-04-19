@@ -20,6 +20,13 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
             _context = context;
             _pageList = pageList;
             _size = pageList.GetPagesCount() * KPageTableBase.PageSize;
+
+            foreach (KPageNode pageNode in pageList)
+            {
+                ulong address = pageNode.Address - DramMemoryMap.DramBase;
+                ulong size = pageNode.PagesCount * KPageTableBase.PageSize;
+                context.Memory.Commit(address, size);
+            }
         }
 
         public void Borrow(KProcess dstProcess, ulong va)

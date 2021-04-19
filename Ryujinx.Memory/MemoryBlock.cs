@@ -9,6 +9,8 @@ namespace Ryujinx.Memory
     /// </summary>
     public sealed class MemoryBlock : IWritableBlock, IDisposable
     {
+        private readonly bool _usesSharedMemory;
+        private IntPtr _sharedMemory;
         private IntPtr _pointer;
 
         /// <summary>
@@ -22,15 +24,21 @@ namespace Ryujinx.Memory
         public ulong Size { get; }
 
         /// <summary>
-        /// Initializes a new instance of the memory block class.
+        /// Creates a new instance of the memory block class.
         /// </summary>
-        /// <param name="size">Size of the memory block</param>
+        /// <param name="size">Size of the memory block in bytes</param>
         /// <param name="flags">Flags that controls memory block memory allocation</param>
         /// <exception cref="OutOfMemoryException">Throw when there's no enough memory to allocate the requested size</exception>
         /// <exception cref="PlatformNotSupportedException">Throw when the current platform is not supported</exception>
         public MemoryBlock(ulong size, MemoryAllocationFlags flags = MemoryAllocationFlags.None)
         {
-            if (flags.HasFlag(MemoryAllocationFlags.Reserve))
+            if (flags.HasFlag(MemoryAllocationFlags.Mirrorable))
+            {
+                _sharedMemory = MemoryManagement.CreateSharedMemory(size, flags.HasFlag(MemoryAllocationFlags.Reserve));
+                _pointer = MemoryManagement.MapSharedMemory(_sharedMemory);
+                _usesSharedMemory = true;
+            }
+            else if (flags.HasFlag(MemoryAllocationFlags.Reserve))
             {
                 _pointer = MemoryManagement.Reserve(size);
             }
@@ -40,6 +48,38 @@ namespace Ryujinx.Memory
             }
 
             Size = size;
+        }
+
+        /// <summary>
+        /// Creates a new instance of the memory block class, with a existing backing storage.
+        /// </summary>
+        /// <param name="size">Size of the memory block in bytes</param>
+        /// <param name="sharedMemory">Shared memory to use as backing storage for this block</param>
+        /// <exception cref="OutOfMemoryException">Throw when there's no enough address space left to map the shared memory</exception>
+        /// <exception cref="PlatformNotSupportedException">Throw when the current platform is not supported</exception>
+        private MemoryBlock(ulong size, IntPtr sharedMemory)
+        {
+            _pointer = MemoryManagement.MapSharedMemory(sharedMemory);
+            Size = size;
+            _usesSharedMemory = true;
+        }
+
+        /// <summary>
+        /// Creates a memory block that shares the backing storage with this block.
+        /// The memory and page commitments will be shared, however memory protections are separate.
+        /// </summary>
+        /// <returns>A new memory block that shares storage with this one</returns>
+        /// <exception cref="NotSupportedException">Throw when the current memory block does not support mirroring</exception>
+        /// <exception cref="OutOfMemoryException">Throw when there's no enough address space left to map the shared memory</exception>
+        /// <exception cref="PlatformNotSupportedException">Throw when the current platform is not supported</exception>
+        public MemoryBlock CreateMirror()
+        {
+            if (_sharedMemory == IntPtr.Zero)
+            {
+                throw new NotSupportedException("Mirroring is not supported on the memory block because the Mirrorable flag was not set.");
+            }
+
+            return new MemoryBlock(Size, _sharedMemory);
         }
 
         /// <summary>
@@ -307,7 +347,20 @@ namespace Ryujinx.Memory
             // If pointer is null, the memory was already freed or never allocated.
             if (ptr != IntPtr.Zero)
             {
-                MemoryManagement.Free(ptr);
+                if (_usesSharedMemory)
+                {
+                    MemoryManagement.UnmapSharedMemory(ptr);
+
+                    if (_sharedMemory != IntPtr.Zero)
+                    {
+                        MemoryManagement.DestroySharedMemory(_sharedMemory);
+                        _sharedMemory = IntPtr.Zero;
+                    }
+                }
+                else
+                {
+                    MemoryManagement.Free(ptr);
+                }
             }
         }
 

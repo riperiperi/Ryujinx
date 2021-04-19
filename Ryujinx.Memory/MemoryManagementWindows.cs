@@ -5,6 +5,8 @@ namespace Ryujinx.Memory
 {
     static class MemoryManagementWindows
     {
+        private static readonly IntPtr InvalidHandleValue = new IntPtr(-1);
+
         [Flags]
         private enum AllocationType : uint
         {
@@ -35,7 +37,21 @@ namespace Ryujinx.Memory
             WriteCombineModifierflag = 0x400
         }
 
-        [DllImport("kernel32.dll")]
+        [Flags]
+        private enum FileMapProtection : uint
+        {
+            PageReadonly = 0x02,
+            PageReadWrite = 0x04,
+            PageWriteCopy = 0x08,
+            PageExecuteRead = 0x20,
+            PageExecuteReadWrite = 0x40,
+            SectionCommit = 0x8000000,
+            SectionImage = 0x1000000,
+            SectionNoCache = 0x10000000,
+            SectionReserve = 0x4000000
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr VirtualAlloc(
             IntPtr lpAddress,
             IntPtr dwSize,
@@ -51,6 +67,32 @@ namespace Ryujinx.Memory
 
         [DllImport("kernel32.dll")]
         private static extern bool VirtualFree(IntPtr lpAddress, IntPtr dwSize, AllocationType dwFreeType);
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr CreateFileMapping(
+            IntPtr hFile,
+            IntPtr lpFileMappingAttributes,
+            FileMapProtection flProtect,
+            uint dwMaximumSizeHigh,
+            uint dwMaximumSizeLow,
+            [MarshalAs(UnmanagedType.LPWStr)] string lpName);
+
+        [DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr hObject);
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr MapViewOfFile(
+            IntPtr hFileMappingObject,
+            uint dwDesiredAccess,
+            uint dwFileOffsetHigh,
+            uint dwFileOffsetLow,
+            IntPtr dwNumberOfBytesToMap);
+
+        [DllImport("kernel32.dll")]
+        private static extern bool UnmapViewOfFile(IntPtr lpBaseAddress);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetLastError();
 
         public static IntPtr Allocate(IntPtr size)
         {
@@ -106,6 +148,54 @@ namespace Ryujinx.Memory
         public static bool Free(IntPtr address)
         {
             return VirtualFree(address, IntPtr.Zero, AllocationType.Release);
+        }
+
+        public static IntPtr CreateSharedMemory(IntPtr size, bool reserve)
+        {
+            var prot = reserve ? FileMapProtection.SectionReserve : FileMapProtection.SectionCommit;
+
+            IntPtr handle = CreateFileMapping(
+                InvalidHandleValue,
+                IntPtr.Zero,
+                FileMapProtection.PageReadWrite | prot,
+                (uint)(size.ToInt64() >> 32),
+                (uint)size.ToInt64(),
+                null);
+
+            if (handle == IntPtr.Zero)
+            {
+                throw new OutOfMemoryException();
+            }
+
+            return handle;
+        }
+
+        public static void DestroySharedMemory(IntPtr handle)
+        {
+            if (!CloseHandle(handle))
+            {
+                throw new ArgumentException("Invalid handle.", nameof(handle));
+            }
+        }
+
+        public static IntPtr MapSharedMemory(IntPtr handle)
+        {
+            IntPtr ptr = MapViewOfFile(handle, 4 | 2, 0, 0, IntPtr.Zero);
+
+            if (ptr == IntPtr.Zero)
+            {
+                throw new OutOfMemoryException();
+            }
+
+            return ptr;
+        }
+
+        public static void UnmapSharedMemory(IntPtr address)
+        {
+            if (!UnmapViewOfFile(address))
+            {
+                throw new ArgumentException("Invalid address.", nameof(address));
+            }
         }
     }
 }

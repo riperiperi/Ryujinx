@@ -17,6 +17,7 @@ namespace Ryujinx.Cpu
         private readonly InvalidAccessHandler _invalidAccessHandler;
 
         private readonly MemoryBlock _addressSpace;
+        private readonly MemoryBlock _addressSpaceMirror;
 
         private struct Mapping : IRange
         {
@@ -37,6 +38,7 @@ namespace Ryujinx.Cpu
         }
 
         private readonly RangeList<Mapping> _mappings;
+        private readonly MemoryEh _memoryEh;
 
         public int AddressSpaceBits { get; }
 
@@ -61,9 +63,11 @@ namespace Ryujinx.Cpu
 
             AddressSpaceBits = asBits;
 
-            _addressSpace = new MemoryBlock(asSize, MemoryAllocationFlags.Reserve);
+            _addressSpace = new MemoryBlock(asSize, MemoryAllocationFlags.Reserve | MemoryAllocationFlags.Mirrorable);
+            _addressSpaceMirror = _addressSpace.CreateMirror();
             _mappings = new RangeList<Mapping>();
             Tracking = new MemoryTracking(this, PageSize);
+            _memoryEh = new MemoryEh(_addressSpace, Tracking);
         }
 
         public void Map(ulong va, nuint hostAddress, ulong size)
@@ -80,7 +84,7 @@ namespace Ryujinx.Cpu
 
         public T Read<T>(ulong va) where T : unmanaged
         {
-            return _addressSpace.Read<T>(va);
+            return _addressSpaceMirror.Read<T>(va);
         }
 
         public T ReadTracked<T>(ulong va) where T : unmanaged
@@ -90,37 +94,43 @@ namespace Ryujinx.Cpu
 
         public void Read(ulong va, Span<byte> data)
         {
-            _addressSpace.Read(va, data);
+            _addressSpaceMirror.Read(va, data);
         }
 
         public void Write<T>(ulong va, T value) where T : unmanaged
         {
-            _addressSpace.Write(va, value);
+            _addressSpaceMirror.Write(va, value);
         }
 
-        public void Write(ulong offset, ReadOnlySpan<byte> data)
+        public void Write(ulong va, ReadOnlySpan<byte> data)
         {
-            _addressSpace.Write(offset, data);
+            SignalMemoryTracking(va, (ulong)data.Length, write: true);
+            _addressSpaceMirror.Write(va, data);
         }
 
         public void WriteUntracked(ulong va, ReadOnlySpan<byte> data)
         {
-            Write(va, data);
+            _addressSpaceMirror.Write(va, data);
         }
 
         public ReadOnlySpan<byte> GetSpan(ulong va, int size, bool tracked = false)
         {
-            return _addressSpace.GetSpan(va, size);
+            if (tracked)
+            {
+                SignalMemoryTracking(va, (ulong)size, write: false);
+            }
+
+            return _addressSpaceMirror.GetSpan(va, size);
         }
 
         public WritableRegion GetWritableRegion(ulong va, int size)
         {
-            return _addressSpace.GetWritableRegion(va, size);
+            return _addressSpaceMirror.GetWritableRegion(va, size);
         }
 
         public ref T GetRef<T>(ulong va) where T : unmanaged
         {
-            return ref _addressSpace.GetRef<T>(va);
+            return ref _addressSpaceMirror.GetRef<T>(va);
         }
 
         public bool IsMapped(ulong va)
@@ -156,10 +166,22 @@ namespace Ryujinx.Cpu
 
         public void SignalMemoryTracking(ulong va, ulong size, bool write)
         {
+            Tracking.VirtualMemoryEvent(va, size, write);
         }
 
         public void TrackingReprotect(ulong va, ulong size, MemoryPermission protection)
         {
+            // Protection is inverted on software pages, since the default value is 0.
+            protection = (~protection) & MemoryPermission.ReadAndWrite;
+
+            protection = protection switch
+            {
+                MemoryPermission.None => MemoryPermission.ReadAndWrite,
+                MemoryPermission.Write => MemoryPermission.Read,
+                _ => MemoryPermission.None
+            };
+
+            _addressSpace.Reprotect(va, size, protection);
         }
 
         public CpuRegionHandle BeginTracking(ulong address, ulong size)
@@ -236,6 +258,8 @@ namespace Ryujinx.Cpu
         public void Dispose()
         {
             _addressSpace.Dispose();
+            _addressSpaceMirror.Dispose();
+            _memoryEh.Dispose();
         }
     }
 }

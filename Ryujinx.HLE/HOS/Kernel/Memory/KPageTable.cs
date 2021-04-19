@@ -108,9 +108,12 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             foreach (var pageNode in pageList)
             {
+                ulong addr = pageNode.Address - DramMemoryMap.DramBase;
                 ulong size = pageNode.PagesCount * PageSize;
 
-                _cpuMemory.Map(currentVa, Context.Memory.GetPointer(pageNode.Address - DramMemoryMap.DramBase, size), size);
+                Context.Memory.Commit(addr, size);
+
+                _cpuMemory.Map(currentVa, Context.Memory.GetPointer(addr, size), size);
 
                 currentVa += size;
             }

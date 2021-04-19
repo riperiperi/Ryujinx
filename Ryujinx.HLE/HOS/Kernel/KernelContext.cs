@@ -80,6 +80,8 @@ namespace Ryujinx.HLE.HOS.Kernel
                 KernelConstants.UserSlabHeapItemSize,
                 KernelConstants.UserSlabHeapSize);
 
+            memory.Commit(KernelConstants.UserSlabHeapBase - DramMemoryMap.DramBase, KernelConstants.UserSlabHeapSize);
+
             CriticalSection = new KCriticalSection(this);
             Schedulers = new KScheduler[KScheduler.CpuCoresCount];
             PriorityQueue = new KPriorityQueue();
