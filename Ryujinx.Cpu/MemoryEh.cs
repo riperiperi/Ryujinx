@@ -74,10 +74,7 @@ namespace Ryujinx.Cpu
 
             bool isWrite = exceptionInfo->ExceptionRecord->ExceptionInformation0 != 0;
 
-            if (!_tracking.VirtualMemoryEvent(offset, PageSize, isWrite))
-            {
-                return EXCEPTION_CONTINUE_SEARCH;
-            }
+            _tracking.VirtualMemoryEvent(offset, PageSize, isWrite);
 
             _addressSpace.Reprotect(offset, PageSize, MemoryPermission.ReadAndWrite);
 
