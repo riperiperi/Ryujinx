@@ -5,6 +5,8 @@ using Ryujinx.Memory.Range;
 using Ryujinx.Memory.Tracking;
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
+using System.Threading;
 
 namespace Ryujinx.Cpu
 {
@@ -40,6 +42,8 @@ namespace Ryujinx.Cpu
         private readonly RangeList<Mapping> _mappings;
         private readonly MemoryEh _memoryEh;
 
+        private ulong[] _pageTable;
+
         public int AddressSpaceBits { get; }
 
         public IntPtr PageTablePointer => _addressSpace.Pointer;
@@ -63,6 +67,7 @@ namespace Ryujinx.Cpu
 
             AddressSpaceBits = asBits;
 
+            _pageTable = new ulong[1 << (AddressSpaceBits - (PageBits + 5))];
             _addressSpace = new MemoryBlock(asSize, MemoryAllocationFlags.Reserve | MemoryAllocationFlags.Mirrorable);
             _addressSpaceMirror = _addressSpace.CreateMirror();
             _mappings = new RangeList<Mapping>();
@@ -169,13 +174,85 @@ namespace Ryujinx.Cpu
 
         public void SignalMemoryTracking(ulong va, ulong size, bool write)
         {
-            Tracking.VirtualMemoryEvent(va, size, write);
+            // Software table, used for managed memory tracking.
+
+            int pages = GetPagesCount(va, (uint)size, out _);
+            ulong pageStart = va >> PageBits;
+
+            for (int page = 0; page < pages; page++)
+            {
+                int bit = (int)((pageStart & 31) << 1);
+
+                ulong tag = (write ? 3UL : 1UL) << bit;
+
+                int pageIndex = (int)(pageStart >> 5);
+                ref ulong pageRef = ref _pageTable[pageIndex];
+
+                ulong pte = Volatile.Read(ref pageRef);
+
+                if ((pte & tag) != 0)
+                {
+                    Tracking.VirtualMemoryEvent(va, size, write);
+                    break;
+                }
+
+                pageStart++;
+            }
+        }
+
+        /// <summary>
+        /// Computes the number of pages in a virtual address range.
+        /// </summary>
+        /// <param name="va">Virtual address of the range</param>
+        /// <param name="size">Size of the range</param>
+        /// <param name="startVa">The virtual address of the beginning of the first page</param>
+        /// <remarks>This function does not differentiate between allocated and unallocated pages.</remarks>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private int GetPagesCount(ulong va, uint size, out ulong startVa)
+        {
+            // WARNING: Always check if ulong does not overflow during the operations.
+            startVa = va & ~(ulong)PageMask;
+            ulong vaSpan = (va - startVa + size + PageMask) & ~(ulong)PageMask;
+
+            return (int)(vaSpan / PageSize);
         }
 
         public void TrackingReprotect(ulong va, ulong size, MemoryPermission protection)
         {
             // Protection is inverted on software pages, since the default value is 0.
             protection = (~protection) & MemoryPermission.ReadAndWrite;
+
+            int pages = GetPagesCount(va, (uint)size, out va);
+            ulong pageStart = va >> PageBits;
+
+            // Software table, used for managed memory tracking.
+
+            for (int page = 0; page < pages; page++)
+            {
+                int bit = (int)((pageStart & 31) << 1);
+
+                ulong invTagMask = ~(3UL << bit);
+
+                ulong tag = protection switch
+                {
+                    MemoryPermission.None => 0UL,
+                    MemoryPermission.Write => 2UL << bit,
+                    _ => 3UL << bit
+                };
+
+                int pageIndex = (int)(pageStart >> 5);
+                ref ulong pageRef = ref _pageTable[pageIndex];
+
+                ulong pte;
+
+                do
+                {
+                    pte = Volatile.Read(ref pageRef);
+                }
+                while (pte != 0 && Interlocked.CompareExchange(ref pageRef, (pte & invTagMask) | tag, pte) != pte);
+
+                pageStart++;
+            }
 
             protection = protection switch
             {
