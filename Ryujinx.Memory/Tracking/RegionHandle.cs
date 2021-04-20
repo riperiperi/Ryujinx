@@ -108,7 +108,7 @@ namespace Ryujinx.Memory.Tracking
             {
                 if (_checkCount > 0 && _checkCount < CheckCountForInfrequent)
                 {
-                    if (++_volatileCount >= VolatileThreshold)
+                    if (++_volatileCount >= VolatileThreshold && _preAction == null)
                     {
                         _volatile = true;
                         return;
@@ -139,6 +139,9 @@ namespace Ryujinx.Memory.Tracking
         /// <param name="action">Action to call on read or write</param>
         public void RegisterAction(RegionSignal action)
         {
+            _volatileCount = 0;
+            _volatile = false;
+
             RegionSignal lastAction = Interlocked.Exchange(ref _preAction, action);
             if (lastAction == null && action != lastAction)
             {
