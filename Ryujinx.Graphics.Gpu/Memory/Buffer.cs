@@ -146,7 +146,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
             }
             else
             {
-                if (_memoryTracking.Dirty && _context.SequenceNumber != _sequenceNumber)
+                if (_context.SequenceNumber != _sequenceNumber && _memoryTracking.DirtyOrVolatile())
                 {
                     _memoryTracking.Reprotect();
 

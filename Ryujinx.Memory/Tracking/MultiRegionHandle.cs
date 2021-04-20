@@ -98,7 +98,7 @@ namespace Ryujinx.Memory.Tracking
             {
                 RegionHandle handle = _handles[i];
 
-                if (handle.Dirty && sequenceNumber != handle.SequenceNumber)
+                if (sequenceNumber != handle.SequenceNumber && handle.DirtyOrVolatile())
                 {
                     rgSize += handle.Size;
                     handle.Reprotect();
