@@ -69,6 +69,8 @@ namespace Ryujinx.Graphics.Gpu.Engine
                 return;
             }
 
+            FlushUboUpdate();
+
             if (copy2D)
             {
                 // Buffer to texture copy.
