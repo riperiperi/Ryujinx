@@ -140,23 +140,26 @@ namespace Ryujinx.Cpu
 
         public bool IsRangeMapped(ulong va, ulong size)
         {
-            var ranges = Array.Empty<Mapping>();
-
-            int count = _mappings.FindOverlapsNonOverlapping(new Mapping(va, size), ref ranges);
-
-            ulong mappedSize = 0;
-
-            for (int i = 0; i < count; i++)
+            lock (_mappings)
             {
-                ref var range = ref ranges[i];
+                var ranges = Array.Empty<Mapping>();
 
-                ulong vaInRange = Math.Max(range.Address, va);
-                ulong endVaInRange = Math.Min(range.EndAddress, va + size);
+                int count = _mappings.FindOverlapsNonOverlapping(new Mapping(va, size), ref ranges);
 
-                mappedSize += endVaInRange - vaInRange;
+                ulong mappedSize = 0;
+
+                for (int i = 0; i < count; i++)
+                {
+                    ref var range = ref ranges[i];
+
+                    ulong vaInRange = Math.Max(range.Address, va);
+                    ulong endVaInRange = Math.Min(range.EndAddress, va + size);
+
+                    mappedSize += endVaInRange - vaInRange;
+                }
+
+                return mappedSize == size;
             }
-
-            return mappedSize == size;
         }
 
         public IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size)
@@ -201,56 +204,60 @@ namespace Ryujinx.Cpu
 
         private void AddMapping(ulong va, ulong size)
         {
-            var ranges = Array.Empty<Mapping>();
-
-            int count = _mappings.FindOverlapsNonOverlapping(new Mapping(va, size), ref ranges);
-
-            for (int i = 0; i < count; i++)
+            lock (_mappings)
             {
-                ref var range = ref ranges[i];
+                ulong endAddress = va + size;
 
-                if (va > range.Address)
+                var ranges = Array.Empty<Mapping>();
+
+                int count = _mappings.FindOverlapsNonOverlapping(new Mapping(va, size), ref ranges);
+
+                for (int i = 0; i < count; i++)
                 {
-                    va = range.Address;
+                    ref var range = ref ranges[i];
 
-                    ulong delta = va - range.Address;
+                    if (va > range.Address)
+                    {
+                        va = range.Address;
+                    }
 
-                    size += delta;
+                    if (endAddress < range.EndAddress)
+                    {
+                        endAddress = range.EndAddress;
+                    }
+
+                    _mappings.Remove(range);
                 }
 
-                if (range.EndAddress > va + size)
-                {
-                    size += range.EndAddress - (va + size);
-                }
-
-                _mappings.Remove(range);
+                _mappings.Add(new Mapping(va, endAddress - va));
             }
-
-            _mappings.Add(new Mapping(va, size));
         }
 
         private void RemoveMapping(ulong va, ulong size)
         {
-            var ranges = Array.Empty<Mapping>();
-
-            int count = _mappings.FindOverlapsNonOverlapping(new Mapping(va, size), ref ranges);
-
-            for (int i = 0; i < count; i++)
+            lock (_mappings)
             {
-                ref var range = ref ranges[i];
+                var ranges = Array.Empty<Mapping>();
 
-                _mappings.Remove(range);
+                int count = _mappings.FindOverlapsNonOverlapping(new Mapping(va, size), ref ranges);
 
-                if (range.Address < va)
+                for (int i = 0; i < count; i++)
                 {
-                    _mappings.Add(new Mapping(range.Address, va - range.Address));
-                }
+                    ref var range = ref ranges[i];
 
-                if (range.EndAddress > va + size)
-                {
-                    ulong delta = range.EndAddress - (va + size);
+                    _mappings.Remove(range);
 
-                    _mappings.Add(new Mapping(range.EndAddress - delta, delta));
+                    if (range.Address < va)
+                    {
+                        _mappings.Add(new Mapping(range.Address, va - range.Address));
+                    }
+
+                    if (range.EndAddress > va + size)
+                    {
+                        ulong delta = range.EndAddress - (va + size);
+
+                        _mappings.Add(new Mapping(range.EndAddress - delta, delta));
+                    }
                 }
             }
         }
