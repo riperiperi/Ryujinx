@@ -94,6 +94,7 @@ namespace Ryujinx.Cpu
 
         public T ReadTracked<T>(ulong va) where T : unmanaged
         {
+            SignalMemoryTracking(va, (ulong)Unsafe.SizeOf<T>(), false);
             return Read<T>(va);
         }
 
@@ -135,6 +136,8 @@ namespace Ryujinx.Cpu
 
         public ref T GetRef<T>(ulong va) where T : unmanaged
         {
+            SignalMemoryTracking(va, (ulong)Unsafe.SizeOf<T>(), true);
+
             return ref _addressSpaceMirror.GetRef<T>(va);
         }
 
@@ -249,7 +252,7 @@ namespace Ryujinx.Cpu
                 {
                     pte = Volatile.Read(ref pageRef);
                 }
-                while (pte != 0 && Interlocked.CompareExchange(ref pageRef, (pte & invTagMask) | tag, pte) != pte);
+                while (Interlocked.CompareExchange(ref pageRef, (pte & invTagMask) | tag, pte) != pte);
 
                 pageStart++;
             }
