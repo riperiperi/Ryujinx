@@ -78,7 +78,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
 
             var ranges = _storage.GetRanges();
 
-            return memoryManager.UnmapPages(address, pagesCount * KPageTableBase.PageSize, ranges, MemoryState.SharedMemory);
+            return memoryManager.UnmapPages(address, pagesCount, ranges, MemoryState.SharedMemory);
         }
     }
 }
