@@ -79,10 +79,14 @@ namespace Ryujinx.Cpu
         {
             _addressSpace.Commit(va, size);
             AddMapping(va, size);
+
+            Tracking.Map(va, size);
         }
 
         public void Unmap(ulong va, ulong size)
         {
+            Tracking.Unmap(va, size);
+
             RemoveMapping(va, size);
             _addressSpace.Decommit(va, size);
         }
@@ -105,6 +109,7 @@ namespace Ryujinx.Cpu
 
         public void Write<T>(ulong va, T value) where T : unmanaged
         {
+            SignalMemoryTracking(va, (ulong)Unsafe.SizeOf<T>(), write: true);
             _addressSpaceMirror.Write(va, value);
         }
 

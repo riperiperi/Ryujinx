@@ -70,6 +70,19 @@ namespace Ryujinx.Memory.Tracking
             }
         }
 
+        /// <summary>
+        /// Clear the volatile state of this handle.
+        /// </summary>
+        private void ClearVolatile()
+        {
+            _volatileCount = 0;
+            _volatile = false;
+        }
+
+        /// <summary>
+        /// Check if this handle is dirty, or if it is volatile. (changes very often)
+        /// </summary>
+        /// <returns>True if the handle is dirty or volatile, false otherwise</returns>
         public bool DirtyOrVolatile()
         {
             _checkCount++;
@@ -139,8 +152,7 @@ namespace Ryujinx.Memory.Tracking
         /// <param name="action">Action to call on read or write</param>
         public void RegisterAction(RegionSignal action)
         {
-            _volatileCount = 0;
-            _volatile = false;
+            ClearVolatile();
 
             RegionSignal lastAction = Interlocked.Exchange(ref _preAction, action);
             if (lastAction == null && action != lastAction)
@@ -186,6 +198,7 @@ namespace Ryujinx.Memory.Tracking
 
                 if (Unmapped)
                 {
+                    ClearVolatile();
                     Dirty = false;
                 }
             }
