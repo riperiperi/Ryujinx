@@ -97,7 +97,7 @@ namespace ARMeilleure.Signal
 
                 Translator.PreparePool();
 
-                bool unix = false;
+                bool unix = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
                 ref SignalHandlerConfig config = ref GetConfigRef();
 
                 if (unix)
