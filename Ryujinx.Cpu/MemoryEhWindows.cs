@@ -6,7 +6,7 @@ using System.Threading;
 
 namespace Ryujinx.Cpu
 {
-    unsafe class MemoryEh : IDisposable
+    unsafe class MemoryEhWindows : MemoryEhBase
     {
         private const int PageSize = 0x1000;
         private const int PageMask = PageSize - 1;
@@ -47,10 +47,8 @@ namespace Ryujinx.Cpu
         private readonly VectoredExceptionHandler _exceptionHandler;
         private IntPtr _handle;
 
-        public MemoryEh(MemoryBlock addressSpace, MemoryTracking tracking)
+        public MemoryEhWindows(MemoryBlock addressSpace, MemoryTracking tracking) : base(addressSpace, tracking)
         {
-            _addressSpace = addressSpace;
-            _tracking = tracking;
             _exceptionHandler = ExceptionHandler;
 
             _handle = AddVectoredExceptionHandler(1, _exceptionHandler);
@@ -65,24 +63,17 @@ namespace Ryujinx.Cpu
 
             nuint faultAddress = exceptionInfo->ExceptionRecord->ExceptionInformation1;
 
-            if (faultAddress < (nuint)(ulong)_addressSpace.Pointer || faultAddress >= (nuint)(ulong)_addressSpace.Pointer + _addressSpace.Size)
-            {
-                return EXCEPTION_CONTINUE_SEARCH;
-            }
-
-            ulong offset = ((ulong)faultAddress - (ulong)_addressSpace.Pointer) & ~(ulong)PageMask;
-
             bool isWrite = exceptionInfo->ExceptionRecord->ExceptionInformation0 != 0;
 
-            if (!_tracking.VirtualMemoryEvent(offset, PageSize, isWrite))
+            if (!HandleInRange(faultAddress, isWrite))
             {
-                _addressSpace.Reprotect(offset, PageSize, MemoryPermission.ReadAndWrite);
+                return EXCEPTION_CONTINUE_SEARCH;
             }
 
             return EXCEPTION_CONTINUE_EXECUTION;
         }
 
-        public void Dispose()
+        public override void Dispose()
         {
             IntPtr handle = Interlocked.Exchange(ref _handle, IntPtr.Zero);
 

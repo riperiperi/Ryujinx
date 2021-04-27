@@ -40,7 +40,7 @@ namespace Ryujinx.Cpu
         }
 
         private readonly RangeList<Mapping> _mappings;
-        private readonly MemoryEh _memoryEh;
+        private readonly IDisposable _memoryEh;
 
         private ulong[] _pageTable;
 
@@ -72,7 +72,7 @@ namespace Ryujinx.Cpu
             _addressSpaceMirror = _addressSpace.CreateMirror();
             _mappings = new RangeList<Mapping>();
             Tracking = new MemoryTracking(this, PageSize);
-            _memoryEh = new MemoryEh(_addressSpace, Tracking);
+            _memoryEh = new MemoryEhMeilleure(_addressSpace, Tracking);
         }
 
         public void Map(ulong va, nuint hostAddress, ulong size)
