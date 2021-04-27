@@ -132,6 +132,11 @@ namespace Ryujinx.Memory
 
                 return MemoryManagementWindows.CreateSharedMemory(sizeNint, reserve);
             }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                     RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return MemoryManagementUnix.CreateSharedMemory(size, reserve);
+            }
             else
             {
                 throw new PlatformNotSupportedException();
@@ -143,6 +148,11 @@ namespace Ryujinx.Memory
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 MemoryManagementWindows.DestroySharedMemory(handle);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                     RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                MemoryManagementUnix.DestroySharedMemory(handle);
             }
             else
             {
@@ -156,6 +166,11 @@ namespace Ryujinx.Memory
             {
                 return MemoryManagementWindows.MapSharedMemory(handle);
             }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                     RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return MemoryManagementUnix.MapSharedMemory(handle);
+            }
             else
             {
                 throw new PlatformNotSupportedException();
@@ -167,6 +182,24 @@ namespace Ryujinx.Memory
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 MemoryManagementWindows.UnmapSharedMemory(address);
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                     RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                MemoryManagementUnix.UnmapSharedMemory(address);
+            }
+            else
+            {
+                throw new PlatformNotSupportedException();
+            }
+        }
+
+        public static IntPtr Remap(IntPtr target, IntPtr source, ulong size)
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ||
+                RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return MemoryManagementUnix.Remap(target, source, size);
             }
             else
             {

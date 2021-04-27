@@ -125,6 +125,20 @@ namespace Ryujinx.Memory
         }
 
         /// <summary>
+        /// Remaps a region of memory into this memory block.
+        /// </summary>
+        /// <param name="offset">Starting offset of the range to be remapped into</param>
+        /// <param name="sourceAddress">Starting offset of the range to be remapped from</param>
+        /// <param name="size">Size of the range to be remapped</param>
+        /// <exception cref="ObjectDisposedException">Throw when the memory block has already been disposed</exception>
+        /// <exception cref="InvalidMemoryRegionException">Throw when either <paramref name="offset"/> or <paramref name="size"/> are out of range</exception>
+        /// <exception cref="MemoryProtectionException">Throw when <paramref name="permission"/> is invalid</exception>
+        public void Remap(ulong offset, IntPtr sourceAddress, ulong size)
+        {
+            MemoryManagement.Remap(GetPointerInternal(offset, size), sourceAddress, size);
+        }
+
+        /// <summary>
         /// Reads bytes from the memory block.
         /// </summary>
         /// <param name="offset">Starting offset of the range being read</param>
