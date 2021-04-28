@@ -825,6 +825,9 @@ namespace Ryujinx.Graphics.Gpu.Image
                 return;
             }
 
+            string texInfo = $"{Info.Target} {Info.FormatInfo.Format} {Info.Width}x{Info.Height}x{Info.DepthOrLayers} levels {Info.Levels}";
+            Logger.Warning?.Print(LogClass.Gpu, $"Flushing texture {texInfo} at ({Range.MinAddress.ToString("x8")}, {Size.ToString("x8")})");
+
             _context.Renderer.BackgroundContextAction(() =>
             {
                 IsModified = false;
