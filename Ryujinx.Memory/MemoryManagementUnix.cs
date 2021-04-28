@@ -18,6 +18,12 @@ namespace Ryujinx.Memory
         [DllImport("libc", SetLastError = true)]
         public static extern IntPtr mremap(IntPtr old_address, ulong old_size, ulong new_size, MremapFlags flags, IntPtr new_address);
 
+        [DllImport("libc", SetLastError = true)]
+        public static extern int madvise(IntPtr address, ulong size, int advice);
+
+        private const int MADV_DONTNEED = 4;
+        private const int MADV_REMOVE = 9;
+
         private static readonly List<UnixSharedMemory> _sharedMemory = new List<UnixSharedMemory>();
         private static readonly ConcurrentDictionary<IntPtr, ulong> _sharedMemorySource = new ConcurrentDictionary<IntPtr, ulong>();
         private static readonly ConcurrentDictionary<IntPtr, ulong> _allocations = new ConcurrentDictionary<IntPtr, ulong>();
@@ -91,12 +97,19 @@ namespace Ryujinx.Memory
 
         public static bool Decommit(IntPtr address, ulong size)
         {
-            if (Syscall.mprotect(address, size, MmapProts.PROT_NONE) == 0)
+            bool isShared;
+
+            lock (_sharedMemory)
             {
-                return Syscall.posix_madvise(address, size, PosixMadviseAdvice.POSIX_MADV_DONTNEED) == 0;
+                isShared = _sharedMemory.Exists(x => (ulong)address >= (ulong)x.Pointer && (ulong)address + size <= (ulong)x.Pointer + x.Size);
             }
 
-            return false;
+            // Must be writable for madvise to work properly.
+            Syscall.mprotect(address, size, MmapProts.PROT_READ | MmapProts.PROT_WRITE);
+
+            madvise(address, size, isShared ? MADV_REMOVE : MADV_DONTNEED);
+
+            return Syscall.mprotect(address, size, MmapProts.PROT_NONE) == 0;
         }
 
         public static bool Reprotect(IntPtr address, ulong size, MemoryPermission permission)
