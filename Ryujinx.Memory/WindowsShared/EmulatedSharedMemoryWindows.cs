@@ -25,8 +25,6 @@ namespace Ryujinx.Memory.WindowsShared
 
             public List<int> Blocks;
 
-            private int expectedBlockCount;
-
             public SharedMemoryMapping(ulong address, ulong size, List<int> blocks = null)
             {
                 Address = address;
@@ -34,10 +32,6 @@ namespace Ryujinx.Memory.WindowsShared
                 EndAddress = address + size;
 
                 Blocks = blocks ?? new List<int>();
-
-                expectedBlockCount = (int)((EndAddress + MappingMask) >> MappingBits) - (int)(Address >> MappingBits);
-
-                if (Blocks.Count > expectedBlockCount) { }
             }
 
             public bool OverlapsWith(ulong address, ulong size)
@@ -49,8 +43,6 @@ namespace Ryujinx.Memory.WindowsShared
             {
                 EndAddress = endAddress;
                 Size = endAddress - Address;
-
-                expectedBlockCount = (int)((EndAddress + MappingMask) >> MappingBits) - (int)(Address >> MappingBits);
             }
 
             public void AddBlocks(IEnumerable<int> blocks)
@@ -63,7 +55,6 @@ namespace Ryujinx.Memory.WindowsShared
                 {
                     Blocks.AddRange(blocks);
                 }
-                if (Blocks.Count > expectedBlockCount) { }
             }
 
             public INonOverlappingRange Split(ulong splitAddress)
