@@ -269,7 +269,7 @@ namespace Ryujinx.Cpu
                 _ => MemoryPermission.None
             };
 
-            _addressSpace.Reprotect(va, size, protection);
+            _addressSpace.Reprotect(va, size, protection, false);
         }
 
         public CpuRegionHandle BeginTracking(ulong address, ulong size)

@@ -474,7 +474,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         {
             UboCacheEntry result;
 
-            if (!_uboCache.TryGetValue(va, out result) || result.UnmappedSequence != result.Buffer.UnmappedSequence)
+            if (!_uboCache.TryGetValue(va, out result) || result.EndAddress < va + size || result.UnmappedSequence != result.Buffer.UnmappedSequence)
             {
                 ulong address = TranslateAndCreateBuffer(va, size);
                 result = new UboCacheEntry(address, GetBuffer(address, size));

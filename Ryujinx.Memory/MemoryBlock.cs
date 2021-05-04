@@ -116,12 +116,13 @@ namespace Ryujinx.Memory
         /// <param name="offset">Starting offset of the range to be reprotected</param>
         /// <param name="size">Size of the range to be reprotected</param>
         /// <param name="permission">New memory permissions</param>
+        /// <param name="throwOnFail">True if a failed reprotect should throw</param>
         /// <exception cref="ObjectDisposedException">Throw when the memory block has already been disposed</exception>
         /// <exception cref="InvalidMemoryRegionException">Throw when either <paramref name="offset"/> or <paramref name="size"/> are out of range</exception>
         /// <exception cref="MemoryProtectionException">Throw when <paramref name="permission"/> is invalid</exception>
-        public void Reprotect(ulong offset, ulong size, MemoryPermission permission)
+        public void Reprotect(ulong offset, ulong size, MemoryPermission permission, bool throwOnFail = true)
         {
-            MemoryManagement.Reprotect(GetPointerInternal(offset, size), size, permission);
+            MemoryManagement.Reprotect(GetPointerInternal(offset, size), size, permission, throwOnFail);
         }
 
         /// <summary>
