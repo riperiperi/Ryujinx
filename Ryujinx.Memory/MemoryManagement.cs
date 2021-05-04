@@ -81,7 +81,7 @@ namespace Ryujinx.Memory
             }
         }
 
-        public static void Reprotect(IntPtr address, ulong size, MemoryPermission permission)
+        public static void Reprotect(IntPtr address, ulong size, MemoryPermission permission, bool throwOnFail)
         {
             bool result;
 
@@ -101,7 +101,7 @@ namespace Ryujinx.Memory
                 throw new PlatformNotSupportedException();
             }
 
-            if (!result)
+            if (!result && throwOnFail)
             {
                 throw new MemoryProtectionException(permission);
             }

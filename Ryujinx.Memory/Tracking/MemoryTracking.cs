@@ -205,6 +205,11 @@ namespace Ryujinx.Memory.Tracking
 
                 if (count == 0)
                 {
+                    if (!_memoryManager.IsMapped(address))
+                    {
+                        throw new InvalidMemoryRegionException();
+                    }
+
                     _memoryManager.TrackingReprotect(address & ~(ulong)(_pageSize - 1), (ulong)_pageSize, MemoryPermission.ReadAndWrite);
                     return false; // We can't handle this - it's probably a real invalid access.
                 }
