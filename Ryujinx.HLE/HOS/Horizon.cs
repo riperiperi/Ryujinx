@@ -402,6 +402,7 @@ namespace Ryujinx.HLE.HOS
                         foreach (KProcess process in KernelContext.Processes.Values.Where(x => x.Flags.HasFlag(ProcessCreationFlags.IsApplication)))
                         {
                             process.Terminate();
+                            process.DecrementReferenceCount();
                         }
 
                         // The application existed, now surface flinger can exit too.
@@ -412,7 +413,10 @@ namespace Ryujinx.HLE.HOS
                         foreach (KProcess process in KernelContext.Processes.Values.Where(x => !x.Flags.HasFlag(ProcessCreationFlags.IsApplication)))
                         {
                             process.Terminate();
+                            process.DecrementReferenceCount();
                         }
+
+                        KernelContext.Processes.Clear();
                     }
 
                     // Exit ourself now!

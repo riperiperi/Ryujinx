@@ -10,6 +10,7 @@ namespace Ryujinx.Memory
     public sealed class MemoryBlock : IWritableBlock, IDisposable
     {
         private readonly bool _usesSharedMemory;
+        private readonly bool _isMirror;
         private IntPtr _sharedMemory;
         private IntPtr _pointer;
 
@@ -62,6 +63,7 @@ namespace Ryujinx.Memory
             _pointer = MemoryManagement.MapSharedMemory(sharedMemory);
             Size = size;
             _usesSharedMemory = true;
+            _isMirror = true;
         }
 
         /// <summary>
@@ -366,7 +368,7 @@ namespace Ryujinx.Memory
                 {
                     MemoryManagement.UnmapSharedMemory(ptr);
 
-                    if (_sharedMemory != IntPtr.Zero)
+                    if (_sharedMemory != IntPtr.Zero && !_isMirror)
                     {
                         MemoryManagement.DestroySharedMemory(_sharedMemory);
                         _sharedMemory = IntPtr.Zero;

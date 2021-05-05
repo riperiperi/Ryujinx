@@ -16,6 +16,11 @@ namespace Ryujinx.HLE.HOS
 
         public ArmProcessContext(T memoryManager)
         {
+            if (memoryManager is IRefCounted rc)
+            {
+                rc.IncrementReferenceCount();
+            }
+
             _memoryManager = memoryManager;
             _cpuContext = new CpuContext(memoryManager);
         }
@@ -27,9 +32,9 @@ namespace Ryujinx.HLE.HOS
 
         public void Dispose()
         {
-            if (_memoryManager is IDisposable disposableMm)
+            if (_memoryManager is IRefCounted rc)
             {
-                disposableMm.Dispose();
+                rc.DecrementReferenceCount();
             }
         }
     }

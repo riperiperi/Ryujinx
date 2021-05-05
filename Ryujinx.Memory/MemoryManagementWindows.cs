@@ -284,7 +284,10 @@ namespace Ryujinx.Memory
                 {
                     foreach (EmulatedSharedMemoryWindows shared in _emulatedSharedList)
                     {
-                        shared.Unmap((ulong)address);
+                        if (shared.Unmap((ulong)address))
+                        {
+                            return;
+                        }
                     }
                 }
             }
