@@ -14,7 +14,7 @@ namespace Ryujinx.Cpu
     /// <summary>
     /// Represents a CPU memory manager.
     /// </summary>
-    public sealed class MemoryManager : IMemoryManager, IVirtualMemoryManagerTracked, IWritableBlock, IDisposable
+    public sealed class MemoryManager : MemoryManagerBase, IMemoryManager, IVirtualMemoryManagerTracked, IWritableBlock
     {
         public const int PageBits = 12;
         public const int PageSize = 1 << PageBits;
@@ -684,6 +684,6 @@ namespace Ryujinx.Cpu
         /// <summary>
         /// Disposes of resources used by the memory manager.
         /// </summary>
-        public void Dispose() => _pageTable.Dispose();
+        protected override void Destroy() => _pageTable.Dispose();
     }
 }

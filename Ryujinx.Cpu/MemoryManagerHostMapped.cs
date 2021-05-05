@@ -10,7 +10,7 @@ using System.Threading;
 
 namespace Ryujinx.Cpu
 {
-    public class MemoryManagerHostMapped : IMemoryManager, IDisposable, IVirtualMemoryManagerTracked
+    public class MemoryManagerHostMapped : MemoryManagerBase, IMemoryManager, IVirtualMemoryManagerTracked
     {
         public const int PageBits = 12;
         public const int PageSize = 1 << PageBits;
@@ -20,6 +20,8 @@ namespace Ryujinx.Cpu
 
         private readonly MemoryBlock _addressSpace;
         private readonly MemoryBlock _addressSpaceMirror;
+
+        private int _refCount;
 
         private struct Mapping : IRange
         {
@@ -347,10 +349,10 @@ namespace Ryujinx.Cpu
             }
         }
 
-        public void Dispose()
+        protected override void Destroy()
         {
-            _addressSpace.Dispose();
             _addressSpaceMirror.Dispose();
+            _addressSpace.Dispose();
             _memoryEh.Dispose();
         }
     }

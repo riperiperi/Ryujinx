@@ -187,6 +187,8 @@ namespace Ryujinx.Graphics.Gpu
             Renderer.Dispose();
             GPFifo.Dispose();
             HostInitalized.Dispose();
+
+            PhysicalMemory.Dispose();
         }
     }
 }

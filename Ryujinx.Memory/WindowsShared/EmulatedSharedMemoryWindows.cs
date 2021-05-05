@@ -666,7 +666,7 @@ namespace Ryujinx.Memory.WindowsShared
                         }
                     }
 
-                    if (!VirtualFree((IntPtr)baseAddress, (IntPtr)_size, AllocationType.Release))
+                    if (!VirtualFree((IntPtr)baseAddress, (IntPtr)0, AllocationType.Release))
                     {
                         throw new InvalidOperationException("Couldn't free mapping placeholder.");
                     }
