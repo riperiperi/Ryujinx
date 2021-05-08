@@ -470,16 +470,24 @@ namespace Ryujinx.Graphics.Gpu.Memory
             CreateBufferAligned(alignedAddress, alignedEndAddress - alignedAddress);
         }
 
-        public UboCacheEntry TranslateCreateAndGetUbo(ulong va, ulong size)
+        /// <summary>
+        /// Performs address translation of the GPU virtual address, and attempts
+        /// to obtain a cached uniform buffer for the given address with a fast lookup.
+        /// If needed, a new buffer is created for the range.
+        /// </summary>
+        /// <param name="gpuVa">Start GPU virtual address of the buffer</param>
+        /// <param name="size">Size in bytes of the buffer</param>
+        /// <returns>A cached uniform buffer entry, containing the cpu va and buffer to be modified</returns>
+        public UboCacheEntry TranslateCreateAndGetUbo(ulong gpuVa, ulong size)
         {
             UboCacheEntry result;
 
-            if (!_uboCache.TryGetValue(va, out result) || result.EndAddress < va + size || result.UnmappedSequence != result.Buffer.UnmappedSequence)
+            if (!_uboCache.TryGetValue(gpuVa, out result) || result.EndGpuAddress < gpuVa + size || result.UnmappedSequence != result.Buffer.UnmappedSequence)
             {
-                ulong address = TranslateAndCreateBuffer(va, size);
-                result = new UboCacheEntry(address, GetBuffer(address, size));
+                ulong address = TranslateAndCreateBuffer(gpuVa, size);
+                result = new UboCacheEntry(address, gpuVa, GetBuffer(address, size));
 
-                _uboCache[va] = result;
+                _uboCache[gpuVa] = result;
             }
 
             return result;
