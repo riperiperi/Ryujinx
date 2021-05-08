@@ -72,15 +72,7 @@ namespace Ryujinx.Cpu
             Tracking.EnablePhysicalProtection = false; // Disabled for now, as protection is done in software.
         }
 
-        /// <summary>
-        /// Maps a virtual memory range into a physical memory range.
-        /// </summary>
-        /// <remarks>
-        /// Addresses and size must be page aligned.
-        /// </remarks>
-        /// <param name="va">Virtual memory address</param>
-        /// <param name="hostAddress">Pointer where the region should be mapped to</param>
-        /// <param name="size">Size to be mapped</param>
+        /// <inheritdoc/>
         public void Map(ulong va, nuint hostAddress, ulong size)
         {
             AssertValidAddressAndSize(va, size);
@@ -98,11 +90,7 @@ namespace Ryujinx.Cpu
             Tracking.Map(oVa, size);
         }
 
-        /// <summary>
-        /// Unmaps a previously mapped range of virtual memory.
-        /// </summary>
-        /// <param name="va">Virtual address of the range to be unmapped</param>
-        /// <param name="size">Size of the range to be unmapped</param>
+        /// <inheritdoc/>
         public void Unmap(ulong va, ulong size)
         {
             // If size is 0, there's nothing to unmap, just exit early.
@@ -126,59 +114,32 @@ namespace Ryujinx.Cpu
             }
         }
 
-        /// <summary>
-        /// Reads data from CPU mapped memory.
-        /// </summary>
-        /// <typeparam name="T">Type of the data being read</typeparam>
-        /// <param name="va">Virtual address of the data in memory</param>
-        /// <returns>The data</returns>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public T Read<T>(ulong va) where T : unmanaged
         {
             return MemoryMarshal.Cast<byte, T>(GetSpan(va, Unsafe.SizeOf<T>(), true))[0];
         }
 
-        /// <summary>
-        /// Reads data from CPU mapped memory, with read tracking
-        /// </summary>
-        /// <typeparam name="T">Type of the data being read</typeparam>
-        /// <param name="va">Virtual address of the data in memory</param>
-        /// <returns>The data</returns>
+        /// <inheritdoc/>
         public T ReadTracked<T>(ulong va) where T : unmanaged
         {
             SignalMemoryTracking(va, (ulong)Unsafe.SizeOf<T>(), false);
             return MemoryMarshal.Cast<byte, T>(GetSpan(va, Unsafe.SizeOf<T>()))[0];
         }
 
-        /// <summary>
-        /// Reads data from CPU mapped memory.
-        /// </summary>
-        /// <param name="va">Virtual address of the data in memory</param>
-        /// <param name="data">Span to store the data being read into</param>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public void Read(ulong va, Span<byte> data)
         {
             ReadImpl(va, data);
         }
 
-        /// <summary>
-        /// Writes data to CPU mapped memory.
-        /// </summary>
-        /// <typeparam name="T">Type of the data being written</typeparam>
-        /// <param name="va">Virtual address to write the data into</param>
-        /// <param name="value">Data to be written</param>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public void Write<T>(ulong va, T value) where T : unmanaged
         {
             Write(va, MemoryMarshal.Cast<T, byte>(MemoryMarshal.CreateSpan(ref value, 1)));
         }
 
-        /// <summary>
-        /// Writes data to CPU mapped memory, with write tracking.
-        /// </summary>
-        /// <param name="va">Virtual address to write the data into</param>
-        /// <param name="data">Data to be written</param>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public void Write(ulong va, ReadOnlySpan<byte> data)
         {
             if (data.Length == 0)
@@ -191,11 +152,7 @@ namespace Ryujinx.Cpu
             WriteImpl(va, data);
         }
 
-        /// <summary>
-        /// Writes data to CPU mapped memory, without write tracking.
-        /// </summary>
-        /// <param name="va">Virtual address to write the data into</param>
-        /// <param name="data">Data to be written</param>
+        /// <inheritdoc/>
         public void WriteUntracked(ulong va, ReadOnlySpan<byte> data)
         {
             if (data.Length == 0)
@@ -252,18 +209,7 @@ namespace Ryujinx.Cpu
             }
         }
 
-        /// <summary>
-        /// Gets a read-only span of data from CPU mapped memory.
-        /// </summary>
-        /// <remarks>
-        /// This may perform a allocation if the data is not contiguous in memory.
-        /// For this reason, the span is read-only, you can't modify the data.
-        /// </remarks>
-        /// <param name="va">Virtual address of the data</param>
-        /// <param name="size">Size of the data</param>
-        /// <param name="tracked">True if read tracking is triggered on the span</param>
-        /// <returns>A read-only span of the data</returns>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public ReadOnlySpan<byte> GetSpan(ulong va, int size, bool tracked = false)
         {
             if (size == 0)
@@ -290,18 +236,7 @@ namespace Ryujinx.Cpu
             }
         }
 
-        /// <summary>
-        /// Gets a region of memory that can be written to.
-        /// </summary>
-        /// <remarks>
-        /// If the requested region is not contiguous in physical memory,
-        /// this will perform an allocation, and flush the data (writing it
-        /// back to guest memory) on disposal.
-        /// </remarks>
-        /// <param name="va">Virtual address of the data</param>
-        /// <param name="size">Size of the data</param>
-        /// <returns>A writable region of memory containing the data</returns>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public unsafe WritableRegion GetWritableRegion(ulong va, int size)
         {
             if (size == 0)
@@ -323,16 +258,7 @@ namespace Ryujinx.Cpu
             }
         }
 
-        /// <summary>
-        /// Gets a reference for the given type at the specified virtual memory address.
-        /// </summary>
-        /// <remarks>
-        /// The data must be located at a contiguous memory region.
-        /// </remarks>
-        /// <typeparam name="T">Type of the data to get the reference</typeparam>
-        /// <param name="va">Virtual address of the data</param>
-        /// <returns>A reference to the data in memory</returns>
-        /// <exception cref="MemoryNotContiguousException">Throw if the specified memory region is not contiguous in physical memory</exception>
+        /// <inheritdoc/>
         public unsafe ref T GetRef<T>(ulong va) where T : unmanaged
         {
             if (!IsContiguous(va, Unsafe.SizeOf<T>()))
@@ -395,13 +321,7 @@ namespace Ryujinx.Cpu
             return true;
         }
 
-        /// <summary>
-        /// Gets the physical regions that make up the given virtual address region.
-        /// If any part of the virtual region is unmapped, null is returned.
-        /// </summary>
-        /// <param name="va">Virtual address of the range</param>
-        /// <param name="size">Size of the range</param>
-        /// <returns>Array of physical regions</returns>
+        /// <inheritdoc/>
         public IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size)
         {
             if (!ValidateAddress(va) || !ValidateAddressAndSize(va, size))
@@ -479,12 +399,7 @@ namespace Ryujinx.Cpu
             }
         }
 
-        /// <summary>
-        /// Checks if a memory range is mapped.
-        /// </summary>
-        /// <param name="va">Virtual address of the range</param>
-        /// <param name="size">Size of the range in bytes</param>
-        /// <returns>True if the entire range is mapped, false otherwise</returns>
+        /// <inheritdoc/>
         public bool IsRangeMapped(ulong va, ulong size)
         {
             if (size == 0UL)
@@ -512,11 +427,7 @@ namespace Ryujinx.Cpu
             return true;
         }
 
-        /// <summary>
-        /// Checks if the page at a given CPU virtual address is mapped.
-        /// </summary>
-        /// <param name="va">Virtual address to check</param>
-        /// <returns>True if the address is mapped, false otherwise</returns>
+        /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsMapped(ulong va)
         {
@@ -569,12 +480,7 @@ namespace Ryujinx.Cpu
             return (_pageTable.Read<nuint>((va / PageSize) * PteSize) & unchecked((nuint)0xffff_ffff_ffffUL)) + (nuint)(va & PageMask);
         }
 
-        /// <summary>
-        /// Reprotect a region of virtual memory for tracking. Sets software protection bits.
-        /// </summary>
-        /// <param name="va">Virtual address base</param>
-        /// <param name="size">Size of the region to protect</param>
-        /// <param name="protection">Memory protection to set</param>
+        /// <inheritdoc/>
         public void TrackingReprotect(ulong va, ulong size, MemoryPermission protection)
         {
             AssertValidAddressAndSize(va, size);
@@ -609,47 +515,25 @@ namespace Ryujinx.Cpu
             }
         }
 
-        /// <summary>
-        /// Obtains a memory tracking handle for the given virtual region. This should be disposed when finished with.
-        /// </summary>
-        /// <param name="address">CPU virtual address of the region</param>
-        /// <param name="size">Size of the region</param>
-        /// <returns>The memory tracking handle</returns>
+        /// <inheritdoc/>
         public CpuRegionHandle BeginTracking(ulong address, ulong size)
         {
             return new CpuRegionHandle(Tracking.BeginTracking(address, size));
         }
 
-        /// <summary>
-        /// Obtains a memory tracking handle for the given virtual region, with a specified granularity. This should be disposed when finished with.
-        /// </summary>
-        /// <param name="address">CPU virtual address of the region</param>
-        /// <param name="size">Size of the region</param>
-        /// <param name="granularity">Desired granularity of write tracking</param>
-        /// <returns>The memory tracking handle</returns>
+        /// <inheritdoc/>
         public CpuMultiRegionHandle BeginGranularTracking(ulong address, ulong size, ulong granularity)
         {
             return new CpuMultiRegionHandle(Tracking.BeginGranularTracking(address, size, granularity));
         }
 
-        /// <summary>
-        /// Obtains a smart memory tracking handle for the given virtual region, with a specified granularity. This should be disposed when finished with.
-        /// </summary>
-        /// <param name="address">CPU virtual address of the region</param>
-        /// <param name="size">Size of the region</param>
-        /// <param name="granularity">Desired granularity of write tracking</param>
-        /// <returns>The memory tracking handle</returns>
+        /// <inheritdoc/>
         public CpuSmartMultiRegionHandle BeginSmartGranularTracking(ulong address, ulong size, ulong granularity)
         {
             return new CpuSmartMultiRegionHandle(Tracking.BeginSmartGranularTracking(address, size, granularity));
         }
 
-        /// <summary>
-        /// Alerts the memory tracking that a given region has been read from or written to.
-        /// This should be called before read/write is performed.
-        /// </summary>
-        /// <param name="va">Virtual address of the region</param>
-        /// <param name="size">Size of the region</param>
+        /// <inheritdoc/>
         public void SignalMemoryTracking(ulong va, ulong size, bool write)
         {
             AssertValidAddressAndSize(va, size);

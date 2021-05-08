@@ -80,6 +80,11 @@ namespace Ryujinx.Cpu
             _memoryEh = new MemoryEhMeilleure(_addressSpace, Tracking);
         }
 
+        /// <summary>
+        /// Checks if the virtual address is part of the addressable space.
+        /// </summary>
+        /// <param name="va">Virtual address</param>
+        /// <returns>True if the virtual address is part of the addressable space</returns>
         private bool ValidateAddress(ulong va)
         {
             return va < _addressSpaceSize;
@@ -124,15 +129,7 @@ namespace Ryujinx.Cpu
             }
         }
 
-        /// <summary>
-        /// Maps a virtual memory range into a physical memory range.
-        /// </summary>
-        /// <remarks>
-        /// Addresses and size must be page aligned.
-        /// </remarks>
-        /// <param name="va">Virtual memory address</param>
-        /// <param name="hostAddress">Pointer where the region should be mapped to</param>
-        /// <param name="size">Size to be mapped</param>
+        /// <inheritdoc/>
         public void Map(ulong va, nuint hostAddress, ulong size)
         {
             AssertValidAddressAndSize(va, size);
@@ -143,11 +140,7 @@ namespace Ryujinx.Cpu
             Tracking.Map(va, size);
         }
 
-        /// <summary>
-        /// Unmaps a previously mapped range of virtual memory.
-        /// </summary>
-        /// <param name="va">Virtual address of the range to be unmapped</param>
-        /// <param name="size">Size of the range to be unmapped</param>
+        /// <inheritdoc/>
         public void Unmap(ulong va, ulong size)
         {
             AssertValidAddressAndSize(va, size);
@@ -158,13 +151,7 @@ namespace Ryujinx.Cpu
             _addressSpace.Decommit(va, size);
         }
 
-        /// <summary>
-        /// Reads data from CPU mapped memory.
-        /// </summary>
-        /// <typeparam name="T">Type of the data being read</typeparam>
-        /// <param name="va">Virtual address of the data in memory</param>
-        /// <returns>The data</returns>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public T Read<T>(ulong va) where T : unmanaged
         {
             AssertMapped(va, (ulong)Unsafe.SizeOf<T>());
@@ -172,12 +159,7 @@ namespace Ryujinx.Cpu
             return _addressSpaceMirror.Read<T>(va);
         }
 
-        /// <summary>
-        /// Reads data from CPU mapped memory, with read tracking
-        /// </summary>
-        /// <typeparam name="T">Type of the data being read</typeparam>
-        /// <param name="va">Virtual address of the data in memory</param>
-        /// <returns>The data</returns>
+        /// <inheritdoc/>
         public T ReadTracked<T>(ulong va) where T : unmanaged
         {
             SignalMemoryTracking(va, (ulong)Unsafe.SizeOf<T>(), false);
@@ -185,12 +167,7 @@ namespace Ryujinx.Cpu
             return Read<T>(va);
         }
 
-        /// <summary>
-        /// Reads data from CPU mapped memory.
-        /// </summary>
-        /// <param name="va">Virtual address of the data in memory</param>
-        /// <param name="data">Span to store the data being read into</param>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public void Read(ulong va, Span<byte> data)
         {
             AssertMapped(va, (ulong)data.Length);
@@ -198,13 +175,7 @@ namespace Ryujinx.Cpu
             _addressSpaceMirror.Read(va, data);
         }
 
-        /// <summary>
-        /// Writes data to CPU mapped memory.
-        /// </summary>
-        /// <typeparam name="T">Type of the data being written</typeparam>
-        /// <param name="va">Virtual address to write the data into</param>
-        /// <param name="value">Data to be written</param>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public void Write<T>(ulong va, T value) where T : unmanaged
         {
             SignalMemoryTracking(va, (ulong)Unsafe.SizeOf<T>(), write: true);
@@ -212,12 +183,7 @@ namespace Ryujinx.Cpu
             _addressSpaceMirror.Write(va, value);
         }
 
-        /// <summary>
-        /// Writes data to CPU mapped memory, with write tracking.
-        /// </summary>
-        /// <param name="va">Virtual address to write the data into</param>
-        /// <param name="data">Data to be written</param>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public void Write(ulong va, ReadOnlySpan<byte> data)
         {
             SignalMemoryTracking(va, (ulong)data.Length, write: true);
@@ -225,11 +191,7 @@ namespace Ryujinx.Cpu
             _addressSpaceMirror.Write(va, data);
         }
 
-        /// <summary>
-        /// Writes data to CPU mapped memory, without write tracking.
-        /// </summary>
-        /// <param name="va">Virtual address to write the data into</param>
-        /// <param name="data">Data to be written</param>
+        /// <inheritdoc/>
         public void WriteUntracked(ulong va, ReadOnlySpan<byte> data)
         {
             AssertMapped(va, (ulong)data.Length);
@@ -237,14 +199,7 @@ namespace Ryujinx.Cpu
             _addressSpaceMirror.Write(va, data);
         }
 
-        /// <summary>
-        /// Gets a read-only span of data from CPU mapped memory.
-        /// </summary>
-        /// <param name="va">Virtual address of the data</param>
-        /// <param name="size">Size of the data</param>
-        /// <param name="tracked">True if read tracking is triggered on the span</param>
-        /// <returns>A read-only span of the data</returns>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public ReadOnlySpan<byte> GetSpan(ulong va, int size, bool tracked = false)
         {
             if (tracked)
@@ -259,13 +214,7 @@ namespace Ryujinx.Cpu
             return _addressSpaceMirror.GetSpan(va, size);
         }
 
-        /// <summary>
-        /// Gets a region of memory that can be written to.
-        /// </summary>
-        /// <param name="va">Virtual address of the data</param>
-        /// <param name="size">Size of the data</param>
-        /// <returns>A writable region of memory containing the data</returns>
-        /// <exception cref="InvalidMemoryRegionException">Throw for unhandled invalid or unmapped memory accesses</exception>
+        /// <inheritdoc/>
         public WritableRegion GetWritableRegion(ulong va, int size)
         {
             AssertMapped(va, (ulong)size);
@@ -273,6 +222,7 @@ namespace Ryujinx.Cpu
             return _addressSpaceMirror.GetWritableRegion(va, size);
         }
 
+        /// <inheritdoc/>
         public ref T GetRef<T>(ulong va) where T : unmanaged
         {
             SignalMemoryTracking(va, (ulong)Unsafe.SizeOf<T>(), true);
@@ -280,11 +230,7 @@ namespace Ryujinx.Cpu
             return ref _addressSpaceMirror.GetRef<T>(va);
         }
 
-        /// <summary>
-        /// Checks if the page at a given CPU virtual address is mapped.
-        /// </summary>
-        /// <param name="va">Virtual address to check</param>
-        /// <returns>True if the address is mapped, false otherwise</returns>
+        /// <inheritdoc/>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public bool IsMapped(ulong va)
         {
@@ -306,12 +252,7 @@ namespace Ryujinx.Cpu
             return ((pte >> bit) & 3) != 0;
         }
 
-        /// <summary>
-        /// Checks if a memory range is mapped.
-        /// </summary>
-        /// <param name="va">Virtual address of the range</param>
-        /// <param name="size">Size of the range in bytes</param>
-        /// <returns>True if the entire range is mapped, false otherwise</returns>
+        /// <inheritdoc/>
         public bool IsRangeMapped(ulong va, ulong size)
         {
             AssertValidAddressAndSize(va, size);
@@ -370,13 +311,7 @@ namespace Ryujinx.Cpu
             return true;
         }
 
-        /// <summary>
-        /// Gets the physical regions that make up the given virtual address region.
-        /// If any part of the virtual region is unmapped, null is returned.
-        /// </summary>
-        /// <param name="va">Virtual address of the range</param>
-        /// <param name="size">Size of the range</param>
-        /// <returns>Array of physical regions</returns>
+        /// <inheritdoc/>
         public IEnumerable<HostMemoryRange> GetPhysicalRegions(ulong va, ulong size)
         {
             AssertMapped(va, size);
@@ -384,13 +319,10 @@ namespace Ryujinx.Cpu
             return new HostMemoryRange[] { new HostMemoryRange(_addressSpaceMirror.GetPointer(va, size), size) };
         }
 
-        /// <summary>
-        /// Alerts the memory tracking that a given region has been read from or written to.
-        /// This should be called before read/write is performed.
+        /// <inheritdoc/>
+        /// <remarks>
         /// This function also validates that the given range is both valid and mapped, and will throw if it is not.
-        /// </summary>
-        /// <param name="va">Virtual address of the region</param>
-        /// <param name="size">Size of the region</param>
+        /// </remarks>
         public void SignalMemoryTracking(ulong va, ulong size, bool write)
         {
             AssertValidAddressAndSize(va, size);
@@ -484,12 +416,7 @@ namespace Ryujinx.Cpu
             return (int)(vaSpan / PageSize);
         }
 
-        /// <summary>
-        /// Reprotect a region of virtual memory for tracking. Sets software protection bits.
-        /// </summary>
-        /// <param name="va">Virtual address base</param>
-        /// <param name="size">Size of the region to protect</param>
-        /// <param name="protection">Memory protection to set</param>
+        /// <inheritdoc/>
         public void TrackingReprotect(ulong va, ulong size, MemoryPermission protection)
         {
             // Protection is inverted on software pages, since the default value is 0.
@@ -577,36 +504,19 @@ namespace Ryujinx.Cpu
             _addressSpace.Reprotect(va, size, protection, false);
         }
 
-        /// <summary>
-        /// Obtains a memory tracking handle for the given virtual region. This should be disposed when finished with.
-        /// </summary>
-        /// <param name="address">CPU virtual address of the region</param>
-        /// <param name="size">Size of the region</param>
-        /// <returns>The memory tracking handle</returns>
+        /// <inheritdoc/>
         public CpuRegionHandle BeginTracking(ulong address, ulong size)
         {
             return new CpuRegionHandle(Tracking.BeginTracking(address, size));
         }
 
-        /// <summary>
-        /// Obtains a memory tracking handle for the given virtual region, with a specified granularity. This should be disposed when finished with.
-        /// </summary>
-        /// <param name="address">CPU virtual address of the region</param>
-        /// <param name="size">Size of the region</param>
-        /// <param name="granularity">Desired granularity of write tracking</param>
-        /// <returns>The memory tracking handle</returns>
+        /// <inheritdoc/>
         public CpuMultiRegionHandle BeginGranularTracking(ulong address, ulong size, ulong granularity)
         {
             return new CpuMultiRegionHandle(Tracking.BeginGranularTracking(address, size, granularity));
         }
 
-        /// <summary>
-        /// Obtains a smart memory tracking handle for the given virtual region, with a specified granularity. This should be disposed when finished with.
-        /// </summary>
-        /// <param name="address">CPU virtual address of the region</param>
-        /// <param name="size">Size of the region</param>
-        /// <param name="granularity">Desired granularity of write tracking</param>
-        /// <returns>The memory tracking handle</returns>
+        /// <inheritdoc/>
         public CpuSmartMultiRegionHandle BeginSmartGranularTracking(ulong address, ulong size, ulong granularity)
         {
             return new CpuSmartMultiRegionHandle(Tracking.BeginSmartGranularTracking(address, size, granularity));
