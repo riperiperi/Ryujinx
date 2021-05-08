@@ -6,6 +6,8 @@ namespace ARMeilleure
     {
         public static bool FastFP { get; set; } = true;
 
+        public static bool UnsafeHostMappedMemory { get; set; } = true;
+
         public static bool UseSseIfAvailable       { get; set; } = true;
         public static bool UseSse2IfAvailable      { get; set; } = true;
         public static bool UseSse3IfAvailable      { get; set; } = true;

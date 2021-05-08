@@ -405,6 +405,12 @@ namespace ARMeilleure.Instructions
                 address = context.ZeroExtend32(OperandType.I64, address);
             }
 
+            if (!Optimizations.UnsafeHostMappedMemory)
+            {
+                Operand mask = Const(ulong.MaxValue >> (64 - context.Memory.AddressSpaceBits));
+                address = context.BitwiseAnd(address, mask);
+            }
+
             Operand baseAddr = Ptc.State == PtcState.Disabled
                 ? Const(context.Memory.PageTablePointer.ToInt64())
                 : Const(context.Memory.PageTablePointer.ToInt64(), true, Ptc.PageTablePointerIndex);
