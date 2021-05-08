@@ -49,7 +49,6 @@ namespace Ryujinx.Graphics.Gpu.Engine
             {
                 FlushUboUpdate();
 
-                _ubFollowUpAddress = address;
                 _ubIntCount = 0;
 
                 UboCacheEntry entry = BufferManager.TranslateCreateAndGetUbo(address, 4);
@@ -84,7 +83,6 @@ namespace Ryujinx.Graphics.Gpu.Engine
             {
                 FlushUboUpdate();
 
-                _ubFollowUpAddress = address;
                 _ubIntCount = 0;
 
                 UboCacheEntry entry = BufferManager.TranslateCreateAndGetUbo(address, size);
