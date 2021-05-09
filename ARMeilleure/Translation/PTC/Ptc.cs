@@ -7,6 +7,7 @@ using ARMeilleure.Translation.Cache;
 using Ryujinx.Common;
 using Ryujinx.Common.Configuration;
 using Ryujinx.Common.Logging;
+using Ryujinx.Configuration;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
@@ -244,6 +245,13 @@ namespace ARMeilleure.Translation.PTC
                     return false;
                 }
 
+                if (outerHeader.MemoryManagerMode != GetMemoryManagerMode())
+                {
+                    InvalidateCompressedStream(compressedStream);
+
+                    return false;
+                }
+
                 if (outerHeader.OSPlatform != GetOSPlatform())
                 {
                     InvalidateCompressedStream(compressedStream);
@@ -441,6 +449,7 @@ namespace ARMeilleure.Translation.PTC
             outerHeader.CacheFileVersion = InternalVersion;
             outerHeader.Endianness = GetEndianness();
             outerHeader.FeatureInfo = GetFeatureInfo();
+            outerHeader.MemoryManagerMode = GetMemoryManagerMode();
             outerHeader.OSPlatform = GetOSPlatform();
 
             outerHeader.UncompressedStreamSize =
@@ -954,6 +963,11 @@ namespace ARMeilleure.Translation.PTC
             return (ulong)HardwareCapabilities.FeatureInfoEdx << 32 | (uint)HardwareCapabilities.FeatureInfoEcx;
         }
 
+        private static byte GetMemoryManagerMode()
+        {
+            return (byte)ConfigurationState.Instance.System.MemoryManagerMode.Value;
+        }
+
         private static uint GetOSPlatform()
         {
             uint osPlatform = 0u;
@@ -966,7 +980,7 @@ namespace ARMeilleure.Translation.PTC
             return osPlatform;
         }
 
-        [StructLayout(LayoutKind.Sequential, Pack = 1/*, Size = 49*/)]
+        [StructLayout(LayoutKind.Sequential, Pack = 1/*, Size = 50*/)]
         private struct OuterHeader
         {
             public ulong Magic;
@@ -975,6 +989,7 @@ namespace ARMeilleure.Translation.PTC
 
             public bool Endianness;
             public ulong FeatureInfo;
+            public byte MemoryManagerMode;
             public uint OSPlatform;
 
             public long UncompressedStreamSize;
