@@ -470,14 +470,37 @@ namespace Ryujinx.Cpu
             }
         }
 
+        /// <summary>
+        /// Get a span representing the given virtual address and size range in host memory.
+        /// This function assumes that the requested virtual memory region is contiguous.
+        /// </summary>
+        /// <param name="va">Virtual address of the range</param>
+        /// <param name="size">Size of the range in bytes</param>
+        /// <returns>A span representing the given virtual range in host memory</returns>
+        /// <exception cref="InvalidMemoryRegionException">Throw when the base virtual address is not mapped</exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private unsafe Span<byte> GetHostSpanContiguous(ulong va, int size)
         {
             return new Span<byte>((void*)GetHostAddress(va), size);
         }
 
+        /// <summary>
+        /// Get the host address for a given virtual address, using the page table.
+        /// </summary>
+        /// <param name="va">Virtual address</param>
+        /// <returns>The corresponding host address for the given virtual address</returns>
+        /// <exception cref="InvalidMemoryRegionException">Throw when the virtual address is not mapped</exception>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private nuint GetHostAddress(ulong va)
         {
-            return (_pageTable.Read<nuint>((va / PageSize) * PteSize) & unchecked((nuint)0xffff_ffff_ffffUL)) + (nuint)(va & PageMask);
+            nuint pageBase = _pageTable.Read<nuint>((va / PageSize) * PteSize) & unchecked((nuint)0xffff_ffff_ffffUL);
+
+            if (pageBase == 0)
+            {
+                ThrowInvalidMemoryRegionException($"Not mapped: va=0x{va:X16}");
+            }
+
+            return pageBase + (nuint)(va & PageMask);
         }
 
         /// <inheritdoc/>
@@ -569,5 +592,7 @@ namespace Ryujinx.Cpu
         /// Disposes of resources used by the memory manager.
         /// </summary>
         protected override void Destroy() => _pageTable.Dispose();
+
+        private void ThrowInvalidMemoryRegionException(string message) => throw new InvalidMemoryRegionException(message);
     }
 }
