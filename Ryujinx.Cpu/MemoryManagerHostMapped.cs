@@ -40,7 +40,7 @@ namespace Ryujinx.Cpu
         private readonly MemoryBlock _addressSpaceMirror;
         private readonly ulong _addressSpaceSize;
 
-        private readonly IDisposable _memoryEh;
+        private readonly MemoryEhMeilleure _memoryEh;
 
         private ulong[] _pageTable;
 
