@@ -89,6 +89,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Memory
         protected override KernelResult MapPages(ulong dstVa, ulong pagesCount, ulong srcPa, KMemoryPermission permission)
         {
             ulong size = pagesCount * PageSize;
+
+            Context.Memory.Commit(srcPa - DramMemoryMap.DramBase, size);
+
             _cpuMemory.Map(dstVa, Context.Memory.GetPointer(srcPa - DramMemoryMap.DramBase, size), size);
 
             if (DramMemoryMap.IsHeapPhysicalAddress(srcPa))
