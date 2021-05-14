@@ -233,7 +233,7 @@ namespace ARMeilleure.Signal
             Operand faultAddress = context.Load(OperandType.I64, context.Add(sigInfoPtr, context.ZeroExtend32(OperandType.I64, structAddressOffset)));
             Operand writeFlag = context.Load(OperandType.I64, context.Add(sigInfoPtr, context.ZeroExtend32(OperandType.I64, structWriteOffset)));
 
-            Operand isWrite = context.ICompareNotEqual(writeFlag, Const(0)); // Normalize to 0/1.
+            Operand isWrite = context.ICompareNotEqual(writeFlag, Const(0L)); // Normalize to 0/1.
 
             Operand isInRegion = EmitGenericRegionCheck(context, signalStructPtr, faultAddress, isWrite);
 
@@ -253,9 +253,9 @@ namespace ARMeilleure.Signal
             context.MarkLabel(threeArgLabel);
 
             context.Call(unixOldSigaction,
-                OperandType.None, 
-                context.LoadArgument(OperandType.I32, 0), 
-                sigInfoPtr, 
+                OperandType.None,
+                context.LoadArgument(OperandType.I32, 0),
+                sigInfoPtr,
                 context.LoadArgument(OperandType.I64, 2)
                 );
 
