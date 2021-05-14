@@ -189,12 +189,10 @@ namespace Ryujinx.Graphics.Gpu.Engine
             else if (resetInstance)
             {
                 PerformDeferredDraws();
-
                 _instanceIndex = 0;
             }
 
             _context.Renderer.Pipeline.SetPrimitiveTopology(topology);
-
             Topology = topology;
         }
 
@@ -204,7 +202,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
         /// </summary>
         /// <param name="state">Current GPU state</param>
         /// <param name="argument">Method call argument</param>
-        private void SetIndexBufferCount(GpuState state, int argument)
+        public void SetIndexBufferCount(GpuState state, int argument)
         {
             _drawIndexed = true;
         }
@@ -274,6 +272,55 @@ namespace Ryujinx.Graphics.Gpu.Engine
             DrawEnd(state, firstIndex, indexCount);
 
             _drawIndexed = oldDrawIndexed;
+        }
+
+        /// <summary>
+        /// Performs a indirect multi-draw, with parameters from a GPU buffer.
+        /// </summary>
+        /// <param name="state">Current GPU state</param>
+        /// <param name="topology">Primitive topology</param>
+        /// <param name="indirectBuffer">GPU buffer with the draw parameters, such as count, first index, etc</param>
+        /// <param name="parameterBuffer">GPU buffer with the draw count</param>
+        /// <param name="maxDrawCount">Maximum number of draws that can be made</param>
+        /// <param name="stride">Distance in bytes between each element on the <paramref name="indirectBuffer"/> array</param>
+        public void MultiDrawIndirectCount(
+            GpuState state,
+            PrimitiveTopology topology,
+            BufferRange indirectBuffer,
+            BufferRange parameterBuffer,
+            int maxDrawCount,
+            int stride)
+        {
+            _context.Renderer.Pipeline.SetPrimitiveTopology(topology);
+            Topology = topology;
+
+            ConditionalRenderEnabled renderEnable = GetRenderEnable(state);
+
+            if (renderEnable == ConditionalRenderEnabled.False)
+            {
+                _drawIndexed = false;
+                return;
+            }
+
+            var indexBuffer = state.Get<IndexBufferState>(MethodOffset.IndexBufferState);
+
+            UpdateState(state, indexBuffer.First, indexBuffer.Count);
+
+            if (_drawIndexed)
+            {
+                _context.Renderer.Pipeline.MultiDrawIndexedIndirectCount(indirectBuffer, parameterBuffer, maxDrawCount, stride);
+            }
+            else
+            {
+                _context.Renderer.Pipeline.MultiDrawIndirectCount(indirectBuffer, parameterBuffer, maxDrawCount, stride);
+            }
+
+            _drawIndexed = false;
+
+            if (renderEnable == ConditionalRenderEnabled.Host)
+            {
+                _context.Renderer.Pipeline.EndHostConditionalRendering();
+            }
         }
 
         /// <summary>

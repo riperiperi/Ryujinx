@@ -48,11 +48,12 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
             /// <summary>
             /// Fetch the command buffer.
             /// </summary>
-            public void Fetch(GpuContext context)
+            /// <param name="flush">If true, flushes potential GPU written data before reading the command buffer</param>
+            public void Fetch(GpuContext context, bool flush = true)
             {
                 if (Words == null)
                 {
-                    Words = MemoryMarshal.Cast<byte, int>(context.MemoryManager.GetSpan(EntryAddress, (int)EntryCount * 4, true)).ToArray();
+                    Words = MemoryMarshal.Cast<byte, int>(context.MemoryManager.GetSpan(EntryAddress, (int)EntryCount * 4, flush)).ToArray();
                 }
             }
         }
@@ -67,6 +68,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
         private readonly GPFifoProcessor _processor;
 
         private bool _interrupt;
+        private int _flushSkips;
 
         /// <summary>
         /// Creates a new instance of the GPU General Purpose FIFO device.
@@ -175,13 +177,33 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
         {
             while (_ibEnable && !_interrupt && _commandBufferQueue.TryDequeue(out CommandBuffer entry))
             {
-                _currentCommandBuffer = entry;
-                _currentCommandBuffer.Fetch(_context);
+                bool flushCommandBuffer = true;
 
-                _processor.Process(_currentCommandBuffer.Words);
+                if (_flushSkips != 0)
+                {
+                    _flushSkips--;
+                    flushCommandBuffer = false;
+                }
+
+                _currentCommandBuffer = entry;
+                _currentCommandBuffer.Fetch(_context, flushCommandBuffer);
+
+                _processor.Process(entry.EntryAddress, _currentCommandBuffer.Words);
             }
 
             _interrupt = false;
+        }
+
+        /// <summary>
+        /// Sets the number of flushes that should be skipped for subsequent command buffers.
+        /// </summary>
+        /// <remarks>
+        /// This can improve performance when command buffer data only needs to be consumed by the GPU.
+        /// </remarks>
+        /// <param name="count">The amount of flushes that should be skipped</param>
+        internal void SetFlushSkips(int count)
+        {
+            _flushSkips = count;
         }
 
         /// <summary>

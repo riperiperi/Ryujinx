@@ -174,7 +174,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
                     {
                         _context.Renderer.SetBufferData(Handle, 0, _context.PhysicalMemory.GetSpan(Address, (int)Size));
                     }
-                    
+
                     _sequenceNumber = _context.SequenceNumber;
                 }
             }

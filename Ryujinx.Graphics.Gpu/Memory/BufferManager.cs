@@ -953,6 +953,11 @@ namespace Ryujinx.Graphics.Gpu.Memory
             buffer.SignalModified(address, size);
         }
 
+        public BufferRange GetGpuBufferRange(ulong gpuVa, ulong size)
+        {
+            return GetBufferRange(TranslateAndCreateBuffer(gpuVa, size), size);
+        }
+
         /// <summary>
         /// Gets a buffer sub-range starting at a given memory address.
         /// </summary>

@@ -53,16 +53,19 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
         /// <summary>
         /// Processes a command buffer.
         /// </summary>
+        /// <param name="baseGpuVa">Base GPU virtual address of the command buffer</param>
         /// <param name="commandBuffer">Command buffer</param>
-        public void Process(ReadOnlySpan<int> commandBuffer)
+        public void Process(ulong baseGpuVa, ReadOnlySpan<int> commandBuffer)
         {
             for (int index = 0; index < commandBuffer.Length; index++)
             {
                 int command = commandBuffer[index];
 
+                ulong gpuVa = baseGpuVa + (ulong)index * 4;
+
                 if (_state.MethodCount != 0)
                 {
-                    Send(new MethodParams(_state.Method, command, _state.SubChannel, _state.MethodCount));
+                    Send(gpuVa, new MethodParams(_state.Method, command, _state.SubChannel, _state.MethodCount));
 
                     if (!_state.NonIncrementing)
                     {
@@ -98,7 +101,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
                             _state.NonIncrementing = meth.SecOp == SecOp.NonIncMethod;
                             break;
                         case SecOp.ImmdDataMethod:
-                            Send(new MethodParams(meth.MethodAddress, meth.ImmdData, meth.MethodSubchannel, 1));
+                            Send(gpuVa, new MethodParams(meth.MethodAddress, meth.ImmdData, meth.MethodSubchannel, 1));
                             break;
                     }
                 }
@@ -135,8 +138,9 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
         /// <summary>
         /// Sends a uncompressed method for processing by the graphics pipeline.
         /// </summary>
+        /// <param name="gpuVa">GPU virtual address where the command word is located</param>
         /// <param name="meth">Method to be processed</param>
-        private void Send(MethodParams meth)
+        private void Send(ulong gpuVa, MethodParams meth)
         {
             if ((MethodOffset)meth.Method == MethodOffset.BindChannel)
             {
@@ -159,7 +163,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
 
                 if ((meth.Method & 1) != 0)
                 {
-                    _fifoClass.MmePushArgument(macroIndex, meth.Argument);
+                    _fifoClass.MmePushArgument(macroIndex, gpuVa, meth.Argument);
                 }
                 else
                 {
