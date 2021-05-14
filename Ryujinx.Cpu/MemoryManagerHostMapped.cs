@@ -272,7 +272,7 @@ namespace Ryujinx.Cpu
 
         private bool IsRangeMappedImpl(ulong va, ulong size)
         {
-            int pages = GetPagesCount(va, (uint)size, out _);
+            int pages = GetPagesCount(va, size, out _);
 
             if (pages == 1)
             {
@@ -329,7 +329,7 @@ namespace Ryujinx.Cpu
 
             // Software table, used for managed memory tracking.
 
-            int pages = GetPagesCount(va, (uint)size, out _);
+            int pages = GetPagesCount(va, size, out _);
             ulong pageStart = va >> PageBits;
 
             if (pages == 1)
@@ -407,7 +407,7 @@ namespace Ryujinx.Cpu
         /// <param name="startVa">The virtual address of the beginning of the first page</param>
         /// <remarks>This function does not differentiate between allocated and unallocated pages.</remarks>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private int GetPagesCount(ulong va, uint size, out ulong startVa)
+        private int GetPagesCount(ulong va, ulong size, out ulong startVa)
         {
             // WARNING: Always check if ulong does not overflow during the operations.
             startVa = va & ~(ulong)PageMask;
@@ -422,7 +422,7 @@ namespace Ryujinx.Cpu
             // Protection is inverted on software pages, since the default value is 0.
             protection = (~protection) & MemoryPermission.ReadAndWrite;
 
-            int pages = GetPagesCount(va, (uint)size, out va);
+            int pages = GetPagesCount(va, size, out va);
             ulong pageStart = va >> PageBits;
 
             if (pages == 1)
@@ -529,7 +529,7 @@ namespace Ryujinx.Cpu
         /// <param name="size">Size to be mapped</param>
         private void AddMapping(ulong va, ulong size)
         {
-            int pages = GetPagesCount(va, (uint)size, out _);
+            int pages = GetPagesCount(va, size, out _);
             ulong pageStart = va >> PageBits;
             ulong pageEnd = pageStart + (ulong)pages;
 
@@ -571,7 +571,7 @@ namespace Ryujinx.Cpu
         /// <param name="size">Size to be unmapped</param>
         private void RemoveMapping(ulong va, ulong size)
         {
-            int pages = GetPagesCount(va, (uint)size, out _);
+            int pages = GetPagesCount(va, size, out _);
             ulong pageStart = va >> PageBits;
             ulong pageEnd = pageStart + (ulong)pages;
 
