@@ -629,7 +629,7 @@ namespace Ryujinx.Memory.WindowsShared
 
             if (mapped == IntPtr.Zero)
             {
-                throw new InvalidOperationException("Could not map view of backing memory.");
+                throw new InvalidOperationException($"Could not map view of backing memory. (va=0x{address:X16} size=0x{size:X16}, error code {Marshal.GetLastWin32Error()})");
             }
 
             if (allocate)
