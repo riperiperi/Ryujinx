@@ -15,6 +15,8 @@ namespace Ryujinx.Memory.WindowsShared
         public const ulong MappingGranularity = 1 << MappingBits;
         public const ulong MappingMask = MappingGranularity - 1;
 
+        public const ulong BackingSize32GB = 32UL * 1024UL * 1024UL * 1024UL; // Reasonable max size of 32GB.
+
         private class SharedMemoryMapping : INonOverlappingRange
         {
             public ulong Address { get; }
@@ -134,7 +136,7 @@ namespace Ryujinx.Memory.WindowsShared
 
         public EmulatedSharedMemoryWindows(ulong size)
         {
-            ulong backingSize = 32UL * 1024UL * 1024UL * 1024UL;
+            ulong backingSize = BackingSize32GB;
 
             _size = size;
             _backingSize = backingSize;

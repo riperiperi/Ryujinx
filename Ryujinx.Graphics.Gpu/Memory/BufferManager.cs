@@ -477,7 +477,7 @@ namespace Ryujinx.Graphics.Gpu.Memory
         /// </summary>
         /// <param name="gpuVa">Start GPU virtual address of the buffer</param>
         /// <param name="size">Size in bytes of the buffer</param>
-        /// <returns>A cached uniform buffer entry, containing the cpu va and buffer to be modified</returns>
+        /// <returns>A cached uniform buffer entry, containing the CPU VA and buffer to be modified</returns>
         public UboCacheEntry TranslateCreateAndGetUbo(ulong gpuVa, ulong size)
         {
             UboCacheEntry result;

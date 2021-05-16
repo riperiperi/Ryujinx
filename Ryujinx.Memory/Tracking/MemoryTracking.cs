@@ -24,8 +24,6 @@ namespace Ryujinx.Memory.Tracking
         /// </summary>
         internal object TrackingLock = new object();
 
-        public bool EnablePhysicalProtection { get; set; }
-
         /// <summary>
         /// Create a new tracking structure for the given "physical" memory block,
         /// with a given "virtual" memory manager that will provide mappings and virtual memory protection.

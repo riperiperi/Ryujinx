@@ -135,7 +135,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
             ulong codeSize = (ulong)creationInfo.CodePagesCount * KPageTableBase.PageSize;
 
             KMemoryBlockSlabManager slabManager = creationInfo.Flags.HasFlag(ProcessCreationFlags.IsApplication)
-                ? KernelContext.LargeMemoryBlockSLabManager
+                ? KernelContext.LargeMemoryBlockSlabManager
                 : KernelContext.SmallMemoryBlockSlabManager;
 
             KernelResult result = MemoryManager.InitializeForProcess(
@@ -227,7 +227,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Process
             else
             {
                 slabManager = creationInfo.Flags.HasFlag(ProcessCreationFlags.IsApplication)
-                    ? KernelContext.LargeMemoryBlockSLabManager
+                    ? KernelContext.LargeMemoryBlockSlabManager
                     : KernelContext.SmallMemoryBlockSlabManager;
             }
 

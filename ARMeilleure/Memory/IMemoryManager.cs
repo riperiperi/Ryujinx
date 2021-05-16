@@ -10,6 +10,8 @@ namespace ARMeilleure.Memory
 
         MemoryManagerType Type { get; }
 
+        event Action<ulong, ulong> UnmapEvent;
+
         /// <summary>
         /// Reads data from CPU mapped memory.
         /// </summary>
@@ -67,6 +69,7 @@ namespace ARMeilleure.Memory
         /// </summary>
         /// <param name="va">Virtual address of the region</param>
         /// <param name="size">Size of the region</param>
+        /// <param name="write">True if the region was written, false if read</param>
         void SignalMemoryTracking(ulong va, ulong size, bool write);
     }
 }
