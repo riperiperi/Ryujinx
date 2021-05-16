@@ -111,13 +111,40 @@ namespace Ryujinx.Memory.Tracking
         }
 
         /// <summary>
+        /// Force this handle to be dirty, without reprotecting.
+        /// </summary>
+        public void ForceDirty()
+        {
+            Dirty = true;
+        }
+
+        /// <summary>
         /// Consume the dirty flag for this handle, and reprotect so it can be set on the next write.
         /// </summary>
         public void Reprotect(bool asDirty = false)
         {
             if (_volatile) return;
 
-            if (!asDirty)
+            Dirty = asDirty;
+
+            bool protectionChanged = false;
+
+            lock (_tracking.TrackingLock)
+            {
+                foreach (VirtualRegion region in _regions)
+                {
+                    protectionChanged |= region.UpdateProtection();
+                }
+            }
+
+            if (!protectionChanged)
+            {
+                // Counteract the check count being incremented when this handle was forced dirty.
+                // It doesn't count for protected write tracking.
+
+                _checkCount--;
+            }
+            else if (!asDirty)
             {
                 if (_checkCount > 0 && _checkCount < CheckCountForInfrequent)
                 {
@@ -133,15 +160,6 @@ namespace Ryujinx.Memory.Tracking
                 }
 
                 _checkCount = 0;
-            }
-
-            Dirty = asDirty;
-            lock (_tracking.TrackingLock)
-            {
-                foreach (VirtualRegion region in _regions)
-                {
-                    region.UpdateProtection();
-                }
             }
         }
 

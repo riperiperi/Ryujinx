@@ -69,7 +69,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
                 return;
             }
 
-            FlushUboUpdate();
+            FlushUboDirty();
 
             if (copy2D)
             {

@@ -332,15 +332,26 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
-        /// Set a region of the buffer directly.
+        /// Force a region of the buffer to be dirty. Avoids reprotection and nullifies sequence number check.
         /// </summary>
         /// <param name="mAddress">Start address of the modified region</param>
-        /// <param name="data">Data to write</param>
-        public void SetData(ulong mAddress, ReadOnlySpan<byte> data)
+        /// <param name="mSize">Size of the region to force dirty</param>
+        public void ForceDirty(ulong mAddress, ulong mSize)
         {
-            int offset = (int)(mAddress - Address);
+            if (_modifiedRanges != null)
+            {
+                _modifiedRanges.Clear(mAddress, mSize);
+            }
 
-            _context.Renderer.SetBufferData(Handle, offset, data);
+            if (_useGranular)
+            {
+                _memoryTrackingGranular.ForceDirty(mAddress, mSize);
+            }
+            else
+            {
+                _memoryTracking.ForceDirty();
+                _sequenceNumber--;
+            }
         }
 
         /// <summary>

@@ -16,7 +16,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
         /// <param name="argument">Method call argument</param>
         public void Dispatch(GpuState state, int argument)
         {
-            FlushUboUpdate();
+            FlushUboDirty();
 
             uint qmdAddress = (uint)state.Get<int>(MethodOffset.DispatchParamsAddress);
 

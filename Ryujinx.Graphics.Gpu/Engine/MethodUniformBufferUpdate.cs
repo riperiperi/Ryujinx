@@ -14,18 +14,16 @@ namespace Ryujinx.Graphics.Gpu.Engine
         private Memory.Buffer _ubLastWritten;
         private ulong _ubBeginCpuAddress = 0;
         private ulong _ubFollowUpAddress = 0;
-        private int[] _ubData = new int[MaxUboSize];
-        private int _ubIntCount = 0;
+        private ulong _ubByteCount = 0;
 
         /// <summary>
         /// Flushes any queued ubo updates.
         /// </summary>
-        private void FlushUboUpdate()
+        private void FlushUboDirty()
         {
             if (_ubLastWritten != null)
             {
-                Span<byte> data = MemoryMarshal.Cast<int, byte>(new Span<int>(_ubData, 0, _ubIntCount));
-                _ubLastWritten.SetData(_ubBeginCpuAddress, data);
+                _ubLastWritten.ForceDirty(_ubBeginCpuAddress, _ubByteCount);
 
                 _ubFollowUpAddress = 0;
                 _ubLastWritten = null;
@@ -43,23 +41,23 @@ namespace Ryujinx.Graphics.Gpu.Engine
 
             ulong address = uniformBuffer.Address.Pack() + (uint)uniformBuffer.Offset;
 
-            ulong currentCpuAddress = _ubBeginCpuAddress + (ulong)_ubIntCount * 4;
+            ulong currentCpuAddress = _ubBeginCpuAddress + _ubByteCount;
 
-            if (_ubFollowUpAddress != address || !_ubLastWritten.FullyContains(currentCpuAddress, 4) || _ubIntCount + 1 >= MaxUboSize)
+            if (_ubFollowUpAddress != address || !_ubLastWritten.FullyContains(currentCpuAddress, 4) || (_ubByteCount >> 2) + 1 >= MaxUboSize)
             {
-                FlushUboUpdate();
+                FlushUboDirty();
 
-                _ubIntCount = 0;
+                _ubByteCount = 0;
 
                 UboCacheEntry entry = BufferManager.TranslateCreateAndGetUbo(address, 4);
                 _ubBeginCpuAddress = entry.Address;
                 _ubLastWritten = entry.Buffer;
             }
 
-            _context.PhysicalMemory.WriteUntracked(_ubBeginCpuAddress + (ulong)_ubIntCount * 4, MemoryMarshal.Cast<int, byte>(MemoryMarshal.CreateSpan(ref argument, 1)));
+            _context.PhysicalMemory.WriteUntracked(_ubBeginCpuAddress + _ubByteCount, MemoryMarshal.Cast<int, byte>(MemoryMarshal.CreateSpan(ref argument, 1)));
 
             _ubFollowUpAddress = address + 4;
-            _ubData[_ubIntCount++] = argument;
+            _ubByteCount += 4;
 
             state.SetUniformBufferOffset(uniformBuffer.Offset + 4);
         }
@@ -77,24 +75,23 @@ namespace Ryujinx.Graphics.Gpu.Engine
 
             ulong size = (ulong)data.Length * 4;
 
-            ulong currentCpuAddress = _ubBeginCpuAddress + (ulong)_ubIntCount * 4;
+            ulong currentCpuAddress = _ubBeginCpuAddress + _ubByteCount;
 
-            if (_ubFollowUpAddress != address || !_ubLastWritten.FullyContains(currentCpuAddress, size) || _ubIntCount + data.Length >= MaxUboSize)
+            if (_ubFollowUpAddress != address || !_ubLastWritten.FullyContains(currentCpuAddress, size) || (_ubByteCount >> 2) + (ulong)data.Length >= MaxUboSize)
             {
-                FlushUboUpdate();
+                FlushUboDirty();
 
-                _ubIntCount = 0;
+                _ubByteCount = 0;
 
                 UboCacheEntry entry = BufferManager.TranslateCreateAndGetUbo(address, size);
                 _ubBeginCpuAddress = entry.Address;
                 _ubLastWritten = entry.Buffer;
             }
 
-            _context.PhysicalMemory.WriteUntracked(_ubBeginCpuAddress + (ulong)_ubIntCount * 4, MemoryMarshal.Cast<int, byte>(data));
+            _context.PhysicalMemory.WriteUntracked(_ubBeginCpuAddress + _ubByteCount, MemoryMarshal.Cast<int, byte>(data));
 
             _ubFollowUpAddress = address + size;
-            data.CopyTo(new Span<int>(_ubData, _ubIntCount, data.Length));
-            _ubIntCount += data.Length;
+            _ubByteCount += size;
 
             state.SetUniformBufferOffset(uniformBuffer.Offset + data.Length * 4);
         }
