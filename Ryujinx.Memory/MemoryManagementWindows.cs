@@ -21,17 +21,17 @@ namespace Ryujinx.Memory
             AllocationType flAllocationType,
             MemoryProtection flProtect);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool VirtualProtect(
             IntPtr lpAddress,
             IntPtr dwSize,
             MemoryProtection flNewProtect,
             out MemoryProtection lpflOldProtect);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool VirtualFree(IntPtr lpAddress, IntPtr dwSize, AllocationType dwFreeType);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr CreateFileMapping(
             IntPtr hFile,
             IntPtr lpFileMappingAttributes,
@@ -40,10 +40,10 @@ namespace Ryujinx.Memory
             uint dwMaximumSizeLow,
             [MarshalAs(UnmanagedType.LPWStr)] string lpName);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool CloseHandle(IntPtr hObject);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr MapViewOfFile(
             IntPtr hFileMappingObject,
             uint dwDesiredAccess,
@@ -51,10 +51,10 @@ namespace Ryujinx.Memory
             uint dwFileOffsetLow,
             IntPtr dwNumberOfBytesToMap);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool UnmapViewOfFile(IntPtr lpBaseAddress);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern uint GetLastError();
 
         static MemoryManagementWindows()
