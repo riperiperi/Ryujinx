@@ -52,6 +52,8 @@ namespace Ryujinx.Cpu
 
         public MemoryTracking Tracking { get; }
 
+        public event Action<ulong, ulong> UnmapEvent;
+
         /// <summary>
         /// Creates a new instance of the host mapped memory manager.
         /// </summary>
@@ -145,6 +147,7 @@ namespace Ryujinx.Cpu
         {
             AssertValidAddressAndSize(va, size);
 
+            UnmapEvent?.Invoke(va, size);
             Tracking.Unmap(va, size);
 
             RemoveMapping(va, size);
@@ -362,7 +365,7 @@ namespace Ryujinx.Cpu
 
                 ulong mask = startMask;
 
-                ulong anyTrackingTag = (ulong)HostMappedPtBits.WriteTrackedReplicated; //(ulong)(write ? HostMappedPtBits.WriteTrackedReplicated : HostMappedPtBits.ReadWriteTrackedReplicated);
+                ulong anyTrackingTag = (ulong)HostMappedPtBits.WriteTrackedReplicated;
 
                 while (pageIndex <= pageEndIndex)
                 {

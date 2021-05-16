@@ -44,7 +44,7 @@ namespace Ryujinx.Cpu
 
         public MemoryTracking Tracking { get; }
 
-        internal event Action<ulong, ulong> UnmapEvent;
+        public event Action<ulong, ulong> UnmapEvent;
 
         /// <summary>
         /// Creates a new instance of the memory manager.
@@ -69,7 +69,6 @@ namespace Ryujinx.Cpu
             _pageTable = new MemoryBlock((asSize / PageSize) * PteSize);
 
             Tracking = new MemoryTracking(this, PageSize);
-            Tracking.EnablePhysicalProtection = false; // Disabled for now, as protection is done in software.
         }
 
         /// <inheritdoc/>

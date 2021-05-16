@@ -11,7 +11,7 @@ namespace Ryujinx.Cpu
         public CpuContext(IMemoryManager memory)
         {
             _translator = new Translator(new JitMemoryAllocator(), memory);
-            // memory.UnmapEvent += UnmapHandler;
+            memory.UnmapEvent += UnmapHandler;
         }
 
         private void UnmapHandler(ulong address, ulong size)
