@@ -13,7 +13,7 @@ namespace Ryujinx.Memory.Tracking
         private readonly MemoryTracking _tracking;
         private MemoryPermission _lastPermission;
 
-        public VirtualRegion(MemoryTracking tracking, ulong address, ulong size, MemoryPermission lastPermission = MemoryPermission.ReadAndWrite) : base(address, size)
+        public VirtualRegion(MemoryTracking tracking, ulong address, ulong size, MemoryPermission lastPermission = MemoryPermission.Invalid) : base(address, size)
         {
             _lastPermission = lastPermission;
             _tracking = tracking;
@@ -35,6 +35,8 @@ namespace Ryujinx.Memory.Tracking
         /// <param name="mapped">True if the region has been mapped, false if unmapped</param>
         public void SignalMappingChanged(bool mapped)
         {
+            _lastPermission = MemoryPermission.Invalid;
+
             foreach (RegionHandle handle in Handles)
             {
                 handle.SignalMappingChanged(mapped);

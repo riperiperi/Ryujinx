@@ -7,7 +7,6 @@ using ARMeilleure.Translation.Cache;
 using Ryujinx.Common;
 using Ryujinx.Common.Configuration;
 using Ryujinx.Common.Logging;
-using Ryujinx.Configuration;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
@@ -65,6 +64,8 @@ namespace ARMeilleure.Translation.PTC
         internal static string TitleIdText { get; private set; }
         internal static string DisplayVersion { get; private set; }
 
+        private static MemoryManagerMode _memoryMode;
+
         internal static string CachePathActual { get; private set; }
         internal static string CachePathBackup { get; private set; }
 
@@ -99,7 +100,7 @@ namespace ARMeilleure.Translation.PTC
             Disable();
         }
 
-        public static void Initialize(string titleIdText, string displayVersion, bool enabled)
+        public static void Initialize(string titleIdText, string displayVersion, bool enabled, MemoryManagerMode memoryMode)
         {
             Wait();
 
@@ -123,6 +124,7 @@ namespace ARMeilleure.Translation.PTC
 
             TitleIdText = titleIdText;
             DisplayVersion = !string.IsNullOrEmpty(displayVersion) ? displayVersion : DisplayVersionDefault;
+            _memoryMode = memoryMode;
 
             string workPathActual = Path.Combine(AppDataManager.GamesDirPath, TitleIdText, "cache", "cpu", ActualDir);
             string workPathBackup = Path.Combine(AppDataManager.GamesDirPath, TitleIdText, "cache", "cpu", BackupDir);
@@ -965,7 +967,7 @@ namespace ARMeilleure.Translation.PTC
 
         private static byte GetMemoryManagerMode()
         {
-            return (byte)ConfigurationState.Instance.System.MemoryManagerMode.Value;
+            return (byte)_memoryMode;
         }
 
         private static uint GetOSPlatform()

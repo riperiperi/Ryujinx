@@ -64,7 +64,11 @@ namespace ARMeilleure.Translation
             JitCache.Initialize(allocator);
 
             DirectCallStubs.InitializeStubs();
-            NativeSignalHandler.InitializeSignalHandler();
+
+            if (memory.Type == MemoryManagerType.HostMapped)
+            {
+                NativeSignalHandler.InitializeSignalHandler();
+            }
         }
 
         private void TranslateStackedSubs()

@@ -1,6 +1,6 @@
 ﻿using Ryujinx.Common.Configuration;
-using Ryujinx.Configuration;
 using Ryujinx.Cpu;
+using Ryujinx.HLE.HOS.Kernel;
 using Ryujinx.HLE.HOS.Kernel.Process;
 using System;
 
@@ -8,9 +8,9 @@ namespace Ryujinx.HLE.HOS
 {
     class ArmProcessContextFactory : IProcessContextFactory
     {
-        public IProcessContext Create(ulong addressSpaceSize, InvalidAccessHandler invalidAccessHandler)
+        public IProcessContext Create(KernelContext context, ulong addressSpaceSize, InvalidAccessHandler invalidAccessHandler)
         {
-            MemoryManagerMode mode = ConfigurationState.Instance.System.MemoryManagerMode.Value;
+            MemoryManagerMode mode = context.Device.Configuration.MemoryManagerMode;
 
             switch (mode)
             {
