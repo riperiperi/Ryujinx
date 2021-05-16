@@ -134,6 +134,24 @@ namespace Ryujinx.Memory.Tracking
             }
         }
 
+        /// <summary>
+        /// Force this handle to be dirty, without reprotecting. This will also remove the reprotect when the dirty flag is removed,
+        /// unless it is triggered by a tracked read or write.
+        /// </summary>
+        public void ForceDirty(ulong address, ulong size)
+        {
+            Dirty = true;
+
+            int startHandle = (int)((address - Address) / Granularity);
+            int lastHandle = (int)((address + (size - 1) - Address) / Granularity);
+
+            for (int i = startHandle; i <= lastHandle; i++)
+            {
+                _handles[i].SequenceNumber--;
+                _handles[i].ForceDirty();
+            }
+        }
+
         public void Dispose()
         {
             foreach (var handle in _handles)

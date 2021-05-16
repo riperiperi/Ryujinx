@@ -332,6 +332,29 @@ namespace Ryujinx.Graphics.Gpu.Memory
         }
 
         /// <summary>
+        /// Force a region of the buffer to be dirty. Avoids reprotection and ignores 
+        /// </summary>
+        /// <param name="mAddress">Start address of the modified region</param>
+        /// <param name="size">Size of the region to force dirty</param>
+        public void ForceDirty(ulong mAddress, ulong mSize)
+        {
+            if (_modifiedRanges != null)
+            {
+                _modifiedRanges.Clear(mAddress, mSize);
+            }
+
+            if (_useGranular)
+            {
+                _memoryTrackingGranular.ForceDirty(mAddress, mSize);
+            }
+            else
+            {
+                _memoryTracking.ForceDirty();
+                _sequenceNumber--;
+            }
+        }
+
+        /// <summary>
         /// Set a region of the buffer directly.
         /// </summary>
         /// <param name="mAddress">Start address of the modified region</param>

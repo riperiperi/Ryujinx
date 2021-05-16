@@ -14,7 +14,6 @@ namespace Ryujinx.Graphics.Gpu.Engine
         private Memory.Buffer _ubLastWritten;
         private ulong _ubBeginCpuAddress = 0;
         private ulong _ubFollowUpAddress = 0;
-        private int[] _ubData = new int[MaxUboSize];
         private int _ubIntCount = 0;
 
         /// <summary>
@@ -24,8 +23,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
         {
             if (_ubLastWritten != null)
             {
-                Span<byte> data = MemoryMarshal.Cast<int, byte>(new Span<int>(_ubData, 0, _ubIntCount));
-                _ubLastWritten.SetData(_ubBeginCpuAddress, data);
+                _ubLastWritten.ForceDirty(_ubBeginCpuAddress, (ulong)_ubIntCount * 4);
 
                 _ubFollowUpAddress = 0;
                 _ubLastWritten = null;
@@ -59,7 +57,7 @@ namespace Ryujinx.Graphics.Gpu.Engine
             _context.PhysicalMemory.WriteUntracked(_ubBeginCpuAddress + (ulong)_ubIntCount * 4, MemoryMarshal.Cast<int, byte>(MemoryMarshal.CreateSpan(ref argument, 1)));
 
             _ubFollowUpAddress = address + 4;
-            _ubData[_ubIntCount++] = argument;
+            _ubIntCount++;
 
             state.SetUniformBufferOffset(uniformBuffer.Offset + 4);
         }
@@ -93,7 +91,6 @@ namespace Ryujinx.Graphics.Gpu.Engine
             _context.PhysicalMemory.WriteUntracked(_ubBeginCpuAddress + (ulong)_ubIntCount * 4, MemoryMarshal.Cast<int, byte>(data));
 
             _ubFollowUpAddress = address + size;
-            data.CopyTo(new Span<int>(_ubData, _ubIntCount, data.Length));
             _ubIntCount += data.Length;
 
             state.SetUniformBufferOffset(uniformBuffer.Offset + data.Length * 4);
