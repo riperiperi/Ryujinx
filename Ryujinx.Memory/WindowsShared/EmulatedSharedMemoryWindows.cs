@@ -79,7 +79,7 @@ namespace Ryujinx.Memory.WindowsShared
             }
         }
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr CreateFileMapping(
             IntPtr hFile,
             IntPtr lpFileMappingAttributes,
@@ -88,7 +88,7 @@ namespace Ryujinx.Memory.WindowsShared
             uint dwMaximumSizeLow,
             [MarshalAs(UnmanagedType.LPWStr)] string lpName);
 
-        [DllImport("kernel32.dll")]
+        [DllImport("kernel32.dll", SetLastError = true)]
         private static extern bool CloseHandle(IntPtr hObject);
 
         [DllImport("KernelBase.dll", SetLastError = true)]
