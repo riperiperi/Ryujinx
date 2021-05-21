@@ -13,7 +13,7 @@ namespace Ryujinx.HLE.HOS.Services.Spl
             _rng = new RNGCryptoServiceProvider();
         }
 
-        [Command(0)]
+        [CommandHipc(0)]
         // GetRandomBytes() -> buffer<unknown, 6>
         public ResultCode GetRandomBytes(ServiceCtx context)
         {
@@ -21,7 +21,7 @@ namespace Ryujinx.HLE.HOS.Services.Spl
 
             _rng.GetBytes(randomBytes);
 
-            context.Memory.WriteBytes(context.Request.ReceiveBuff[0].Position, randomBytes);
+            context.Memory.Write(context.Request.ReceiveBuff[0].Position, randomBytes);
 
             return ResultCode.Success;
         }

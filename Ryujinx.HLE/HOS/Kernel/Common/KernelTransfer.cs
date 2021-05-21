@@ -1,18 +1,19 @@
+using Ryujinx.Cpu;
 using Ryujinx.HLE.HOS.Kernel.Process;
-using ARMeilleure.Memory;
+using System;
 
 namespace Ryujinx.HLE.HOS.Kernel.Common
 {
     static class KernelTransfer
     {
-        public static bool UserToKernelInt32(Horizon system, ulong address, out int value)
+        public static bool UserToKernelInt32(KernelContext context, ulong address, out int value)
         {
-            KProcess currentProcess = system.Scheduler.GetCurrentProcess();
+            KProcess currentProcess = KernelStatic.GetCurrentProcess();
 
-            if (currentProcess.CpuMemory.IsMapped((long)address) &&
-                currentProcess.CpuMemory.IsMapped((long)address + 3))
+            if (currentProcess.CpuMemory.IsMapped(address) &&
+                currentProcess.CpuMemory.IsMapped(address + 3))
             {
-                value = currentProcess.CpuMemory.ReadInt32((long)address);
+                value = currentProcess.CpuMemory.Read<int>(address);
 
                 return true;
             }
@@ -22,16 +23,16 @@ namespace Ryujinx.HLE.HOS.Kernel.Common
             return false;
         }
 
-        public static bool UserToKernelInt32Array(Horizon system, ulong address, int[] values)
+        public static bool UserToKernelInt32Array(KernelContext context, ulong address, Span<int> values)
         {
-            KProcess currentProcess = system.Scheduler.GetCurrentProcess();
+            KProcess currentProcess = KernelStatic.GetCurrentProcess();
 
             for (int index = 0; index < values.Length; index++, address += 4)
             {
-                if (currentProcess.CpuMemory.IsMapped((long)address) &&
-                    currentProcess.CpuMemory.IsMapped((long)address + 3))
+                if (currentProcess.CpuMemory.IsMapped(address) &&
+                    currentProcess.CpuMemory.IsMapped(address + 3))
                 {
-                    values[index]= currentProcess.CpuMemory.ReadInt32((long)address);
+                    values[index]= currentProcess.CpuMemory.Read<int>(address);
                 }
                 else
                 {
@@ -42,14 +43,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Common
             return true;
         }
 
-        public static bool UserToKernelString(Horizon system, ulong address, int size, out string value)
+        public static bool UserToKernelString(KernelContext context, ulong address, int size, out string value)
         {
-            KProcess currentProcess = system.Scheduler.GetCurrentProcess();
+            KProcess currentProcess = KernelStatic.GetCurrentProcess();
 
-            if (currentProcess.CpuMemory.IsMapped((long)address) &&
-                currentProcess.CpuMemory.IsMapped((long)address + size - 1))
+            if (currentProcess.CpuMemory.IsMapped(address) &&
+                currentProcess.CpuMemory.IsMapped(address + (ulong)size - 1))
             {
-                value = MemoryHelper.ReadAsciiString(currentProcess.CpuMemory, (long)address, size);
+                value = MemoryHelper.ReadAsciiString(currentProcess.CpuMemory, address, size);
 
                 return true;
             }
@@ -59,14 +60,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Common
             return false;
         }
 
-        public static bool KernelToUserInt32(Horizon system, ulong address, int value)
+        public static bool KernelToUserInt32(KernelContext context, ulong address, int value)
         {
-            KProcess currentProcess = system.Scheduler.GetCurrentProcess();
+            KProcess currentProcess = KernelStatic.GetCurrentProcess();
 
-            if (currentProcess.CpuMemory.IsMapped((long)address) &&
-                currentProcess.CpuMemory.IsMapped((long)address + 3))
+            if (currentProcess.CpuMemory.IsMapped(address) &&
+                currentProcess.CpuMemory.IsMapped(address + 3))
             {
-                currentProcess.CpuMemory.WriteInt32((long)address, value);
+                currentProcess.CpuMemory.Write(address, value);
 
                 return true;
             }
@@ -74,14 +75,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Common
             return false;
         }
 
-        public static bool KernelToUserInt64(Horizon system, ulong address, long value)
+        public static bool KernelToUserInt64(KernelContext context, ulong address, long value)
         {
-            KProcess currentProcess = system.Scheduler.GetCurrentProcess();
+            KProcess currentProcess = KernelStatic.GetCurrentProcess();
 
-            if (currentProcess.CpuMemory.IsMapped((long)address) &&
-                currentProcess.CpuMemory.IsMapped((long)address + 7))
+            if (currentProcess.CpuMemory.IsMapped(address) &&
+                currentProcess.CpuMemory.IsMapped(address + 7))
             {
-                currentProcess.CpuMemory.WriteInt64((long)address, value);
+                currentProcess.CpuMemory.Write(address, value);
 
                 return true;
             }

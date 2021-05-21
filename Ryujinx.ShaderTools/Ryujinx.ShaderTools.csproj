@@ -1,24 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <RuntimeIdentifiers>win-x64;osx-x64;linux-x64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
-    <Configurations>Debug;Release;Profile Debug;Profile Release</Configurations>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile Release|AnyCPU'">
-    <DefineConstants>TRACE;USE_PROFILING</DefineConstants>
-    <Optimize>true</Optimize>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile Debug|AnyCPU'">
-    <DefineConstants>TRACE;USE_PROFILING</DefineConstants>
-    <Optimize>false</Optimize>
+    <Configurations>Debug;Release</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Ryujinx.Graphics\Ryujinx.Graphics.csproj" />
+    <ProjectReference Include="..\Ryujinx.Graphics.Shader\Ryujinx.Graphics.Shader.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,73 +1,65 @@
-﻿using ARMeilleure.Memory;
-using Ryujinx.Graphics.Memory;
-using Ryujinx.HLE.HOS.Kernel.Process;
-using System;
+﻿using Ryujinx.Graphics.Gpu.Memory;
 using System.Collections.Generic;
-using System.Text;
 
 namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types
 {
     class AddressSpaceContext
     {
-        public NvGpuVmm Vmm { get; private set; }
-
         private class Range
         {
-            public ulong Start { get; private set; }
-            public ulong End   { get; private set; }
+            public ulong Start { get; }
+            public ulong End   { get; }
 
-            public Range(long position, long size)
+            public Range(ulong address, ulong size)
             {
-                Start = (ulong)position;
-                End   = (ulong)size + Start;
+                Start = address;
+                End   = size + Start;
             }
         }
 
         private class MappedMemory : Range
         {
-            public long PhysicalAddress { get; private set; }
-            public bool VaAllocated     { get; private set; }
+            public ulong PhysicalAddress { get; }
+            public bool  VaAllocated     { get; }
 
-            public MappedMemory(
-                long position,
-                long size,
-                long physicalAddress,
-                bool vaAllocated) : base(position, size)
+            public MappedMemory(ulong address, ulong size, ulong physicalAddress, bool vaAllocated) : base(address, size)
             {
                 PhysicalAddress = physicalAddress;
                 VaAllocated     = vaAllocated;
             }
         }
 
-        private SortedList<long, Range> _maps;
-        private SortedList<long, Range> _reservations;
+        public MemoryManager Gmm { get; }
 
-        public AddressSpaceContext(KProcess process)
+        private readonly SortedList<ulong, Range> _maps;
+        private readonly SortedList<ulong, Range> _reservations;
+
+        public AddressSpaceContext(ServiceCtx context)
         {
-            Vmm = new NvGpuVmm(process.CpuMemory);
+            Gmm = context.Device.Gpu.MemoryManager;
 
-            _maps         = new SortedList<long, Range>();
-            _reservations = new SortedList<long, Range>();
+            _maps         = new SortedList<ulong, Range>();
+            _reservations = new SortedList<ulong, Range>();
         }
 
-        public bool ValidateFixedBuffer(long position, long size)
+        public bool ValidateFixedBuffer(ulong address, ulong size, ulong alignment)
         {
-            long mapEnd = position + size;
+            ulong mapEnd = address + size;
 
             // Check if size is valid (0 is also not allowed).
-            if ((ulong)mapEnd <= (ulong)position)
+            if (mapEnd <= address)
             {
                 return false;
             }
 
-            // Check if address is page aligned.
-            if ((position & NvGpuVmm.PageMask) != 0)
+            // Check if address is aligned.
+            if ((address & (alignment - 1)) != 0)
             {
                 return false;
             }
 
             // Check if region is reserved.
-            if (BinarySearch(_reservations, position) == null)
+            if (BinarySearch(_reservations, address) == null)
             {
                 return false;
             }
@@ -75,7 +67,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types
             // Check for overlap with already mapped buffers.
             Range map = BinarySearchLt(_maps, mapEnd);
 
-            if (map != null && map.End > (ulong)position)
+            if (map != null && map.End > address)
             {
                 return false;
             }
@@ -83,26 +75,22 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types
             return true;
         }
 
-        public void AddMap(
-            long position,
-            long size,
-            long physicalAddress,
-            bool vaAllocated)
+        public void AddMap(ulong gpuVa, ulong size, ulong physicalAddress, bool vaAllocated)
         {
-            _maps.Add(position, new MappedMemory(position, size, physicalAddress, vaAllocated));
+            _maps.Add(gpuVa, new MappedMemory(gpuVa, size, physicalAddress, vaAllocated));
         }
 
-        public bool RemoveMap(long position, out long size)
+        public bool RemoveMap(ulong gpuVa, out ulong size)
         {
             size = 0;
 
-            if (_maps.Remove(position, out Range value))
+            if (_maps.Remove(gpuVa, out Range value))
             {
                 MappedMemory map = (MappedMemory)value;
 
                 if (map.VaAllocated)
                 {
-                    size = (long)(map.End - map.Start);
+                    size = (map.End - map.Start);
                 }
 
                 return true;
@@ -111,36 +99,34 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types
             return false;
         }
 
-        public bool TryGetMapPhysicalAddress(long position, out long physicalAddress)
+        public bool TryGetMapPhysicalAddress(ulong gpuVa, out ulong physicalAddress)
         {
-            Range map = BinarySearch(_maps, position);
+            Range map = BinarySearch(_maps, gpuVa);
 
             if (map != null)
             {
                 physicalAddress = ((MappedMemory)map).PhysicalAddress;
-
                 return true;
             }
 
             physicalAddress = 0;
-
             return false;
         }
 
-        public void AddReservation(long position, long size)
+        public void AddReservation(ulong gpuVa, ulong size)
         {
-            _reservations.Add(position, new Range(position, size));
+            _reservations.Add(gpuVa, new Range(gpuVa, size));
         }
 
-        public bool RemoveReservation(long position)
+        public bool RemoveReservation(ulong gpuVa)
         {
-            return _reservations.Remove(position);
+            return _reservations.Remove(gpuVa);
         }
 
-        private Range BinarySearch(SortedList<long, Range> lst, long position)
+        private Range BinarySearch(SortedList<ulong, Range> list, ulong address)
         {
             int left  = 0;
-            int right = lst.Count - 1;
+            int right = list.Count - 1;
 
             while (left <= right)
             {
@@ -148,14 +134,14 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types
 
                 int middle = left + (size >> 1);
 
-                Range rg = lst.Values[middle];
+                Range rg = list.Values[middle];
 
-                if ((ulong)position >= rg.Start && (ulong)position < rg.End)
+                if (address >= rg.Start && address < rg.End)
                 {
                     return rg;
                 }
 
-                if ((ulong)position < rg.Start)
+                if (address < rg.Start)
                 {
                     right = middle - 1;
                 }
@@ -168,12 +154,12 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types
             return null;
         }
 
-        private Range BinarySearchLt(SortedList<long, Range> lst, long position)
+        private Range BinarySearchLt(SortedList<ulong, Range> list, ulong address)
         {
             Range ltRg = null;
 
             int left  = 0;
-            int right = lst.Count - 1;
+            int right = list.Count - 1;
 
             while (left <= right)
             {
@@ -181,9 +167,9 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types
 
                 int middle = left + (size >> 1);
 
-                Range rg = lst.Values[middle];
+                Range rg = list.Values[middle];
 
-                if ((ulong)position < rg.Start)
+                if (address < rg.Start)
                 {
                     right = middle - 1;
                 }
@@ -191,7 +177,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types
                 {
                     left = middle + 1;
 
-                    if ((ulong)position > rg.Start)
+                    if (address > rg.Start)
                     {
                         ltRg = rg;
                     }

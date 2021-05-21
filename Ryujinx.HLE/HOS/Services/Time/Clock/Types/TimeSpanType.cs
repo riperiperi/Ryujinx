@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 
 namespace Ryujinx.HLE.HOS.Services.Time.Clock
 {
@@ -8,6 +9,8 @@ namespace Ryujinx.HLE.HOS.Services.Time.Clock
         private const long NanoSecondsPerSecond = 1000000000;
 
         public static readonly TimeSpanType Zero = new TimeSpanType(0);
+
+        private static readonly DateTime UnixEpoch = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
         public long NanoSeconds;
 
@@ -21,9 +24,24 @@ namespace Ryujinx.HLE.HOS.Services.Time.Clock
             return NanoSeconds / NanoSecondsPerSecond;
         }
 
+        public TimeSpanType AddSeconds(long seconds)
+        {
+            return new TimeSpanType(NanoSeconds + (seconds * NanoSecondsPerSecond));
+        }
+
+        public bool IsDaylightSavingTime()
+        {
+            return UnixEpoch.AddSeconds(ToSeconds()).ToLocalTime().IsDaylightSavingTime();
+        }
+
         public static TimeSpanType FromSeconds(long seconds)
         {
             return new TimeSpanType(seconds * NanoSecondsPerSecond);
+        }
+
+        public static TimeSpanType FromTimeSpan(TimeSpan timeSpan)
+        {
+            return new TimeSpanType((long)(timeSpan.TotalMilliseconds * 1000000));
         }
 
         public static TimeSpanType FromTicks(ulong ticks, ulong frequency)

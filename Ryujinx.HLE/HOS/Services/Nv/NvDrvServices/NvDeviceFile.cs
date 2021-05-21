@@ -1,7 +1,8 @@
-﻿using Ryujinx.HLE.HOS.Kernel.Memory;
-using Ryujinx.HLE.HOS.Kernel.Process;
+﻿using Ryujinx.Common.Logging;
+using Ryujinx.HLE.HOS.Kernel.Memory;
 using System;
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -9,11 +10,15 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices
 {
     abstract class NvDeviceFile
     {
-        public readonly KProcess Owner;
+        public readonly ServiceCtx Context;
+        public readonly long       Owner;
 
-        public NvDeviceFile(ServiceCtx context)
+        public string Path;
+
+        public NvDeviceFile(ServiceCtx context, long owner)
         {
-            Owner = context.Process;
+            Context = context;
+            Owner   = owner;
         }
 
         public virtual NvInternalResult QueryEvent(out int eventHandle, uint eventId)
@@ -23,8 +28,11 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices
             return NvInternalResult.NotImplemented;
         }
 
-        public virtual NvInternalResult MapSharedMemory(KSharedMemory sharedMemory, uint argument)
+        public virtual NvInternalResult MapSharedMemory(int sharedMemoryHandle, uint argument)
         {
+            // Close shared memory immediately as we don't use it.
+            Context.Device.System.KernelContext.Syscall.CloseHandle(sharedMemoryHandle);
+
             return NvInternalResult.NotImplemented;
         }
 
@@ -48,11 +56,18 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices
         protected delegate NvInternalResult IoctlProcessorInline<T, T1>(ref T arguments, ref T1 inlineData);
         protected delegate NvInternalResult IoctlProcessorInlineSpan<T, T1>(ref T arguments, Span<T1> inlineData);
 
+        private static NvInternalResult PrintResult(MethodInfo info, NvInternalResult result)
+        {
+            Logger.Debug?.Print(LogClass.ServiceNv, $"{info.Name} returned result {result}");
+
+            return result;
+        }
+
         protected static NvInternalResult CallIoctlMethod<T>(IoctlProcessor<T> callback, Span<byte> arguments) where T : struct
         {
             Debug.Assert(arguments.Length == Unsafe.SizeOf<T>());
 
-            return callback(ref MemoryMarshal.Cast<byte, T>(arguments)[0]);
+            return PrintResult(callback.Method, callback(ref MemoryMarshal.Cast<byte, T>(arguments)[0]));
         }
 
         protected static NvInternalResult CallIoctlMethod<T, T1>(IoctlProcessorInline<T, T1> callback, Span<byte> arguments, Span<byte> inlineBuffer) where T : struct where T1 : struct
@@ -60,19 +75,19 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices
             Debug.Assert(arguments.Length == Unsafe.SizeOf<T>());
             Debug.Assert(inlineBuffer.Length == Unsafe.SizeOf<T1>());
 
-            return callback(ref MemoryMarshal.Cast<byte, T>(arguments)[0], ref MemoryMarshal.Cast<byte, T1>(inlineBuffer)[0]);
+            return PrintResult(callback.Method, callback(ref MemoryMarshal.Cast<byte, T>(arguments)[0], ref MemoryMarshal.Cast<byte, T1>(inlineBuffer)[0]));
         }
 
         protected static NvInternalResult CallIoctlMethod<T>(IoctlProcessorSpan<T> callback, Span<byte> arguments) where T : struct
         {
-            return callback(MemoryMarshal.Cast<byte, T>(arguments));
+            return PrintResult(callback.Method, callback(MemoryMarshal.Cast<byte, T>(arguments)));
         }
 
         protected static NvInternalResult CallIoctlMethod<T, T1>(IoctlProcessorInlineSpan<T, T1> callback, Span<byte> arguments, Span<byte> inlineBuffer) where T : struct where T1 : struct
         {
             Debug.Assert(arguments.Length == Unsafe.SizeOf<T>());
 
-            return callback(ref MemoryMarshal.Cast<byte, T>(arguments)[0], MemoryMarshal.Cast<byte, T1>(inlineBuffer));
+            return PrintResult(callback.Method, callback(ref MemoryMarshal.Cast<byte, T>(arguments)[0], MemoryMarshal.Cast<byte, T1>(inlineBuffer)));
         }
 
         public abstract void Close();

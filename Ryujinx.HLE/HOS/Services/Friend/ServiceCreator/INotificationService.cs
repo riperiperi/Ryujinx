@@ -2,8 +2,8 @@ using Ryujinx.Common;
 using Ryujinx.HLE.HOS.Ipc;
 using Ryujinx.HLE.HOS.Kernel.Common;
 using Ryujinx.HLE.HOS.Kernel.Threading;
+using Ryujinx.HLE.HOS.Services.Account.Acc;
 using Ryujinx.HLE.HOS.Services.Friend.ServiceCreator.NotificationService;
-using Ryujinx.HLE.Utilities;
 using System;
 using System.Collections.Generic;
 
@@ -11,7 +11,7 @@ namespace Ryujinx.HLE.HOS.Services.Friend.ServiceCreator
 {
     class INotificationService : IpcService, IDisposable
     {
-        private readonly UInt128                      _userId;
+        private readonly UserId                       _userId;
         private readonly FriendServicePermissionLevel _permissionLevel;
 
         private readonly object _lock = new object();
@@ -24,12 +24,12 @@ namespace Ryujinx.HLE.HOS.Services.Friend.ServiceCreator
         private bool _hasNewFriendRequest;
         private bool _hasFriendListUpdate;
 
-        public INotificationService(ServiceCtx context, UInt128 userId, FriendServicePermissionLevel permissionLevel)
+        public INotificationService(ServiceCtx context, UserId userId, FriendServicePermissionLevel permissionLevel)
         {
             _userId            = userId;
             _permissionLevel   = permissionLevel;
             _notifications     = new LinkedList<NotificationInfo>();
-            _notificationEvent = new KEvent(context.Device.System);
+            _notificationEvent = new KEvent(context.Device.System.KernelContext);
 
             _hasNewFriendRequest = false;
             _hasFriendListUpdate = false;
@@ -37,7 +37,7 @@ namespace Ryujinx.HLE.HOS.Services.Friend.ServiceCreator
             NotificationEventHandler.Instance.RegisterNotificationService(this);
         }
 
-        [Command(0)] //2.0.0+
+        [CommandHipc(0)] //2.0.0+
         // nn::friends::detail::ipc::INotificationService::GetEvent() -> handle<copy>
         public ResultCode GetEvent(ServiceCtx context)
         {
@@ -54,7 +54,7 @@ namespace Ryujinx.HLE.HOS.Services.Friend.ServiceCreator
             return ResultCode.Success;
         }
 
-        [Command(1)] //2.0.0+
+        [CommandHipc(1)] //2.0.0+
         // nn::friends::detail::ipc::INotificationService::Clear()
         public ResultCode Clear(ServiceCtx context)
         {
@@ -69,7 +69,7 @@ namespace Ryujinx.HLE.HOS.Services.Friend.ServiceCreator
             return ResultCode.Success;
         }
 
-        [Command(2)] // 2.0.0+
+        [CommandHipc(2)] // 2.0.0+
         // nn::friends::detail::ipc::INotificationService::Pop() -> nn::friends::detail::ipc::SizedNotificationInfo
         public ResultCode Pop(ServiceCtx context)
         {
@@ -98,7 +98,7 @@ namespace Ryujinx.HLE.HOS.Services.Friend.ServiceCreator
             return ResultCode.NotificationQueueEmpty;
         }
 
-        public void SignalFriendListUpdate(UInt128 targetId)
+        public void SignalFriendListUpdate(UserId targetId)
         {
             lock (_lock)
             {
@@ -140,11 +140,11 @@ namespace Ryujinx.HLE.HOS.Services.Friend.ServiceCreator
             }
         }
 
-        public void SignalNewFriendRequest(UInt128 targetId)
+        public void SignalNewFriendRequest(UserId targetId)
         {
             lock (_lock)
             {
-                if ((_permissionLevel & FriendServicePermissionLevel.OverlayMask) != 0 && _userId == targetId)
+                if ((_permissionLevel & FriendServicePermissionLevel.ViewerMask) != 0 && _userId == targetId)
                 {
                     if (!_hasNewFriendRequest)
                     {

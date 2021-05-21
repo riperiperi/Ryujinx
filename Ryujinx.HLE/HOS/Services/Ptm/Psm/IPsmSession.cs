@@ -12,11 +12,11 @@ namespace Ryujinx.HLE.HOS.Services.Ptm.Psm
 
         public IPsmSession(Horizon system)
         {
-            _stateChangeEvent       = new KEvent(system);
+            _stateChangeEvent       = new KEvent(system.KernelContext);
             _stateChangeEventHandle = -1;
         }
 
-        [Command(0)]
+        [CommandHipc(0)]
         // BindStateChangeEvent() -> KObject
         public ResultCode BindStateChangeEvent(ServiceCtx context)
         {
@@ -32,12 +32,12 @@ namespace Ryujinx.HLE.HOS.Services.Ptm.Psm
 
             context.Response.HandleDesc = IpcHandleDesc.MakeCopy(_stateChangeEventHandle);
 
-            Logger.PrintStub(LogClass.ServicePsm);
+            Logger.Stub?.PrintStub(LogClass.ServicePsm);
 
             return ResultCode.Success;
         }
 
-        [Command(1)]
+        [CommandHipc(1)]
         // UnbindStateChangeEvent()
         public ResultCode UnbindStateChangeEvent(ServiceCtx context)
         {
@@ -47,40 +47,40 @@ namespace Ryujinx.HLE.HOS.Services.Ptm.Psm
                 _stateChangeEventHandle = -1;
             }
 
-            Logger.PrintStub(LogClass.ServicePsm);
+            Logger.Stub?.PrintStub(LogClass.ServicePsm);
 
             return ResultCode.Success;
         }
 
-        [Command(2)]
+        [CommandHipc(2)]
         // SetChargerTypeChangeEventEnabled(u8)
         public ResultCode SetChargerTypeChangeEventEnabled(ServiceCtx context)
         {
             bool chargerTypeChangeEventEnabled = context.RequestData.ReadBoolean();
 
-            Logger.PrintStub(LogClass.ServicePsm, new { chargerTypeChangeEventEnabled });
+            Logger.Stub?.PrintStub(LogClass.ServicePsm, new { chargerTypeChangeEventEnabled });
 
             return ResultCode.Success;
         }
 
-        [Command(3)]
+        [CommandHipc(3)]
         // SetPowerSupplyChangeEventEnabled(u8)
         public ResultCode SetPowerSupplyChangeEventEnabled(ServiceCtx context)
         {
             bool powerSupplyChangeEventEnabled = context.RequestData.ReadBoolean();
 
-            Logger.PrintStub(LogClass.ServicePsm, new { powerSupplyChangeEventEnabled });
+            Logger.Stub?.PrintStub(LogClass.ServicePsm, new { powerSupplyChangeEventEnabled });
 
             return ResultCode.Success;
         }
 
-        [Command(4)]
+        [CommandHipc(4)]
         // SetBatteryVoltageStateChangeEventEnabled(u8)
         public ResultCode SetBatteryVoltageStateChangeEventEnabled(ServiceCtx context)
         {
             bool batteryVoltageStateChangeEventEnabled = context.RequestData.ReadBoolean();
 
-            Logger.PrintStub(LogClass.ServicePsm, new { batteryVoltageStateChangeEventEnabled });
+            Logger.Stub?.PrintStub(LogClass.ServicePsm, new { batteryVoltageStateChangeEventEnabled });
 
             return ResultCode.Success;
         }

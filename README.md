@@ -4,99 +4,110 @@
     <a href="https://ci.appveyor.com/project/gdkchan/ryujinx?branch=master" target="_blank">
         <img src="https://ci.appveyor.com/api/projects/status/ssg4jwu6ve3k594s/branch/master?svg=true">
     </a>
-    <a href="https://discord.gg/N2FmfVc">
+    <a href="https://discord.gg/Ryujinx">
         <img src="https://img.shields.io/discord/410208534861447168.svg">
     </a>
 </h1>
 
 <p align="center">
-    <i>An Experimental Switch emulator written in C#</i><br />
+    <i>An experimental Switch emulator written in C#</i><br />
     <br />
-    <img src="https://i.imgur.com/JDLmXJ6.png">
+    <img src="https://raw.githubusercontent.com/Ryujinx/Ryujinx-Website/master/static/public/shell_fullsize.png">
 </p>
 
 <h5 align="center">
-    A lot of games boot, but only some are playable. See the compatiblity list <a href="https://github.com/Ryujinx/Ryujinx-Games-List/issues" target="_blank">here</a>.
+    As of March 2021, Ryujinx has been tested on over 3,200 titles: ~2,700 boot past menus and into gameplay, with approximately 1,900 of those being considered playable. See the compatibility list <a href="https://github.com/Ryujinx/Ryujinx-Games-List/issues" target="_blank">here</a>.
 </h5>
 
 ## Usage
 
-To run this emulator, you need the [.NET Core 3.0 (or higher) SDK](https://dotnet.microsoft.com/download/dotnet-core).
+To run this emulator, we recommend that your PC have at least 8GB of RAM; less than this amount can result in unpredictable behavior and may cause crashes or unacceptable performance.
 
-If you use a pre-built version, you can use the graphical interface to run your games and homebrew.
-
-If you build it yourself you will need to:
-Run `dotnet run -c Release -- path\to\homebrew.nro` inside the Ryujinx project folder to run homebrew apps.
-Run `dotnet run -c Release -- path\to\game.nsp/xci` to run official games.
-
-Every file related to Ryujinx is stored in the `RyuFs` folder. Located in `C:\Users\USERNAME\AppData\Roaming\` for Windows, `/home/USERNAME/.config` for Linux or `/Users/USERNAME/Library/Application Support/` for macOS. It can also be accessed by clicking `Open Ryujinx Folder` under the File menu in the GUI.
+See our [Setup & Configuration Guide](https://github.com/Ryujinx/Ryujinx/wiki/Ryujinx-Setup-&-Configuration-Guide) on how to set up the emulator.
 
 ## Latest build
 
-These builds are compiled automatically for each commit on the master branch, **and may be unstable or completely broken.**
+These builds are compiled automatically for each commit on the master branch. While we strive to ensure optimal stability and performance prior to pushing an update, our automated builds **may be unstable or completely broken.**
 
-The latest automatic build for Windows, macOS, and Linux can be found on the [Official Website](https://ryujinx.org/#/Build).
+The latest automatic build for Windows, macOS, and Linux can be found on the [Official Website](https://ryujinx.org/download).
 
-## Requirements
+## Building
 
- - **Switch Keys**
+If you wish to build the emulator yourself  you will need to:
 
-   Everything on the Switch is encrypted, so if you want to run anything other than homebrew, you have to dump encryption keys from your console. To get more information please take a look at our [Keys Documentation](KEYS.md).
+**Step one:** Install the X64 version of [.NET 5.0 (or higher) SDK](https://dotnet.microsoft.com/download/dotnet/5.0).
 
- - **FFmpeg Dependencies**
+**Step two (choose one):**  
+**(Variant one)**
 
-   Ryujinx has a basic implementation of `NVDEC`, a video decoder used by the Switch's GPU. Many games include videos that use it, so you need to download [Zeranoe's FFmpeg Builds](http://ffmpeg.zeranoe.com/builds/) for **Shared** linking and your computer's operating system. When it's done, extract the contents of the `bin` folder directly into your Ryujinx folder.
+After the installation of the .NET SDK is done; go ahead and copy the Clone link from GitHub from here (via Clone or Download --> Copy HTTPS Link. You can Git Clone the repo by using Git Bash or Git CMD.
 
- - **System Titles**
+**(Variant two):**
 
-   Some of our System Module implementations, like `time`, require [System Data Archives](https://switchbrew.org/wiki/Title_list#System_Data_Archives). You can install them by mounting your nand partition using [HacDiskMount](https://switchtools.sshnuke.net/) and copying the content to `RyuFs/nand/system`.
+Download the ZIP Tarball. Then extract it to a directory of your choice.
 
- - **Executables**
+**Step three:**
 
-   Ryujinx is able to run both official games and homebrew.
+Build the App using a Command prompt in the project directory. You can quickly access it by holding shift in explorer (in the Ryujinx directory) then right clicking, and typing the following command:  
+Run `dotnet build -c Release` inside the Ryujinx project folder to build Ryujinx binaries.
 
-   Homebrew is available on many websites, such as the [Switch Appstore](https://www.switchbru.com/appstore/).
-
-   A hacked Nintendo Switch is needed to dump games, which you can learn how to do [here](https://nh-server.github.io/switch-guide/). Once you have hacked your Nintendo Switch, you will need to dump your own games with [NxDumpTool](https://github.com/DarkMatterCore/nxdumptool/releases) to get an XCI or NSP dump.
+Ryujinx system files are stored in the `Ryujinx` folder. This folder is located in the user folder, which can be accessed by clicking `Open Ryujinx Folder` under the File menu in the GUI.
 
 ## Features
 
  - **Audio**
 
-   Everything for audio is partially supported. We currently use a C# wrapper for [libsoundio](http://libsound.io/), and we support [OpenAL](https://openal.org/downloads/OpenAL11CoreSDK.zip) (installation needed) too as a fallback. Our current Opus implementation is pretty incomplete.
+   Audio output is entirely supported, audio input (microphone) isn't supported. We use C# wrappers for [OpenAL](https://openal-soft.org/), and [libsoundio](http://libsound.io/) as the fallback.
 
 - **CPU**
 
-  The CPU emulator, ARMeilleure, emulates an ARMv8 CPU, and currently only has support for the new 64-bit ARMv8 instructions (with a few instructions still missing). It translates the ARM code to a custom IR, performs a few optimizations, and turns that into x86 code. To handle that, we use our own JIT called ARMeilleure, which uses the custom IR and compiles the code to x86.
+  The CPU emulator, ARMeilleure, emulates an ARMv8 CPU and currently has support for most 64-bit ARMv8 and some of the ARMv7 (and older) instructions, including partial 32-bit support. It translates the ARM code to a custom IR, performs a few optimizations, and turns that into x86 code.  
+  Ryujinx also features an optional Profiled Persistent Translation Cache, which essentially caches translated functions so that they do not need to be translated every time the game loads. The net result is a significant reduction in load times (the amount of time between launching a game and arriving at the title screen) for nearly every game. NOTE: this feature is now enabled by default in the Options menu > System tab. You must launch the game at least twice to the title screen or beyond before performance improvements are unlocked on the third launch! These improvements are permanent and do not require any extra launches going forward.
 
 - **GPU**
 
-  The GPU emulator emulates the Switch's Maxwell GPU using the OpenGL API (version 4.2 minimum) through a custom build of OpenTK.
+  The GPU emulator emulates the Switch's Maxwell GPU using the OpenGL API (version 4.5 minimum) through a custom build of OpenTK. There are currently four graphics enhancements available to the end user in Ryujinx: disk shader caching, resolution scaling, aspect ratio adjustment and anisotropic filtering. These enhancements can be adjusted or toggled as desired in the GUI.
 
 - **Input**
 
-   We currently have support for keyboard, mouse, touch input, JoyCon input support emulated through the keyboard, and some controllers too. You can set up everything inside the configuration menu.
+   We currently have support for keyboard, mouse, touch input, JoyCon input support emulated through the keyboard, and most controllers. Controller support varies by operating system, as outlined below.  
+   Windows: Xinput-compatible controllers are supported natively; other controllers can be supported with the help of Xinput wrappers such as x360ce.  
+   Linux: most modern controllers are supported.  
+   In either case, you can set up everything inside the input configuration menu.
+
+- **DLC & Modifications**
+
+   Ryujinx is able to manage add-on content/downloadable content through the GUI. Mods (romfs, exefs, and runtime mods such as cheats) are also supported; the GUI contains a shortcut to open the respective mods folder for a particular game.
 
 - **Configuration**
 
-   The emulator has settings for dumping shaders, enabling or disabling some logging, remapping controllers, and more. You can configure all of them through the graphical interface or manually through the config file, `Config.json`.
-
-   For more information [you can go here](CONFIG.md) *(Outdated)*.
+   The emulator has settings for enabling or disabling some logging, remapping controllers, and more. You can configure all of them through the graphical interface or manually through the config file, `Config.json`, found in the user folder which can be accessed by clicking `Open Ryujinx Folder` under the File menu in the GUI.
 
 ## Compatibility
 
 You can check out the compatibility list [here](https://github.com/Ryujinx/Ryujinx-Games-List/issues).
 
-Don't hesitate to open a new issue if a game isn't already on there.
+Don't hesitate to open a new issue if a game isn't already on there!
 
 ## Help
 
-If you have homebrew that currently doesn't work within the emulator, you can contact us through our Discord with the .NRO/.NSO and source code, if possible. We'll take note of whatever is causing the app/game to not work, on the watch list and fix it at a later date.
+If you are having problems launching homebrew or a particular game marked status-playable or status-ingame in our compatibility list, you can contact us through our [Discord server](https://discord.gg/Ryujinx). We'll take note of whatever is causing the app/game to not work, put it on the watch list and fix it at a later date.
 
-If you need help with setting up Ryujinx, you can ask questions in the support channel of our Discord server.
+If you need help with setting up Ryujinx, you can ask questions in the #support channel of our [Discord server](https://discord.gg/Ryujinx).
 
 ## Contact
 
-If you have contributions, need support, have suggestions, or just want to get in touch with the team, join our [Discord server](https://discord.gg/N2FmfVc)!
+If you have contributions, need support, have suggestions, or just want to get in touch with the team, join our [Discord server](https://discord.gg/Ryujinx)!
 
 If you'd like to donate, please take a look at our [Patreon](https://www.patreon.com/ryujinx).
+
+## License
+
+This software is licensed under the terms of the MIT license.
+The Ryujinx.Audio project is licensed under the terms of the LGPLv3 license.
+This project makes use of code authored by the libvpx project, licensed under BSD and the ffmpeg project, licensed under LGPLv3.
+See [LICENSE.txt](LICENSE.txt) and [THIRDPARTY.md](Ryujinx/THIRDPARTY.md) for more details.
+ 
+## Credits
+
+- [AmiiboAPI](https://www.amiiboapi.com) is used in our Amiibo emulation.

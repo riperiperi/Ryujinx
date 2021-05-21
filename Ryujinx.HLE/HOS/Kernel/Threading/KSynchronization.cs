@@ -1,24 +1,25 @@
 using Ryujinx.HLE.HOS.Kernel.Common;
+using System;
 using System.Collections.Generic;
 
 namespace Ryujinx.HLE.HOS.Kernel.Threading
 {
     class KSynchronization
     {
-        private Horizon _system;
+        private KernelContext _context;
 
-        public KSynchronization(Horizon system)
+        public KSynchronization(KernelContext context)
         {
-            _system = system;
+            _context = context;
         }
 
-        public KernelResult WaitFor(KSynchronizationObject[] syncObjs, long timeout, out int handleIndex)
+        public KernelResult WaitFor(Span<KSynchronizationObject> syncObjs, long timeout, out int handleIndex)
         {
             handleIndex = 0;
 
             KernelResult result = KernelResult.TimedOut;
 
-            _system.CriticalSection.Enter();
+            _context.CriticalSection.Enter();
 
             // Check if objects are already signaled before waiting.
             for (int index = 0; index < syncObjs.Length; index++)
@@ -30,19 +31,19 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
 
                 handleIndex = index;
 
-                _system.CriticalSection.Leave();
+                _context.CriticalSection.Leave();
 
                 return KernelResult.Success;
             }
 
             if (timeout == 0)
             {
-                _system.CriticalSection.Leave();
+                _context.CriticalSection.Leave();
 
                 return result;
             }
 
-            KThread currentThread = _system.Scheduler.GetCurrentThread();
+            KThread currentThread = KernelStatic.GetCurrentThread();
 
             if (currentThread.ShallBeTerminated ||
                 currentThread.SchedFlags == ThreadSchedState.TerminationPending)
@@ -72,19 +73,19 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
 
                 if (timeout > 0)
                 {
-                    _system.TimeManager.ScheduleFutureInvocation(currentThread, timeout);
+                    _context.TimeManager.ScheduleFutureInvocation(currentThread, timeout);
                 }
 
-                _system.CriticalSection.Leave();
+                _context.CriticalSection.Leave();
 
                 currentThread.WaitingSync = false;
 
                 if (timeout > 0)
                 {
-                    _system.TimeManager.UnscheduleFutureInvocation(currentThread);
+                    _context.TimeManager.UnscheduleFutureInvocation(currentThread);
                 }
 
-                _system.CriticalSection.Enter();
+                _context.CriticalSection.Enter();
 
                 result = currentThread.ObjSyncResult;
 
@@ -101,14 +102,14 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
                 }
             }
 
-            _system.CriticalSection.Leave();
+            _context.CriticalSection.Leave();
 
             return result;
         }
 
         public void SignalObject(KSynchronizationObject syncObj)
         {
-            _system.CriticalSection.Enter();
+            _context.CriticalSection.Enter();
 
             if (syncObj.IsSignaled())
             {
@@ -130,7 +131,7 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
                 }
             }
 
-            _system.CriticalSection.Leave();
+            _context.CriticalSection.Leave();
         }
     }
 }

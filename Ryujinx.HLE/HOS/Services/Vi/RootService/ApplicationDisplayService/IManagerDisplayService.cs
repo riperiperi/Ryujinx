@@ -4,56 +4,63 @@ namespace Ryujinx.HLE.HOS.Services.Vi.RootService.ApplicationDisplayService
 {
     class IManagerDisplayService : IpcService
     {
-        private static IApplicationDisplayService _applicationDisplayService;
+        private IApplicationDisplayService _applicationDisplayService;
 
         public IManagerDisplayService(IApplicationDisplayService applicationDisplayService)
         {
             _applicationDisplayService = applicationDisplayService;
         }
 
-        [Command(2010)]
+        [CommandHipc(2010)]
         // CreateManagedLayer(u32, u64, nn::applet::AppletResourceUserId) -> u64
         public ResultCode CreateManagedLayer(ServiceCtx context)
         {
-            Logger.PrintStub(LogClass.ServiceVi);
+            long layerFlags           = context.RequestData.ReadInt64();
+            long displayId            = context.RequestData.ReadInt64();
+            long appletResourceUserId = context.RequestData.ReadInt64();
 
-            context.ResponseData.Write(0L); //LayerId
+            long pid = context.Device.System.AppletState.AppletResourceUserIds.GetData<long>((int)appletResourceUserId);
+
+            context.Device.System.SurfaceFlinger.CreateLayer(pid, out long layerId);
+            context.Device.System.SurfaceFlinger.SetRenderLayer(layerId);
+
+            context.ResponseData.Write(layerId);
 
             return ResultCode.Success;
         }
 
-        [Command(2011)]
+        [CommandHipc(2011)]
         // DestroyManagedLayer(u64)
         public ResultCode DestroyManagedLayer(ServiceCtx context)
         {
-            Logger.PrintStub(LogClass.ServiceVi);
+            long layerId = context.RequestData.ReadInt64();
+
+            context.Device.System.SurfaceFlinger.CloseLayer(layerId);
 
             return ResultCode.Success;
         }
 
-        [Command(2012)] // 7.0.0+
+        [CommandHipc(2012)] // 7.0.0+
         // CreateStrayLayer(u32, u64) -> (u64, u64, buffer<bytes, 6>)
         public ResultCode CreateStrayLayer(ServiceCtx context)
         {
-            Logger.PrintStub(LogClass.ServiceVi);
-
             return _applicationDisplayService.CreateStrayLayer(context);
         }
 
-        [Command(6000)]
+        [CommandHipc(6000)]
         // AddToLayerStack(u32, u64)
         public ResultCode AddToLayerStack(ServiceCtx context)
         {
-            Logger.PrintStub(LogClass.ServiceVi);
+            Logger.Stub?.PrintStub(LogClass.ServiceVi);
 
             return ResultCode.Success;
         }
 
-        [Command(6002)]
+        [CommandHipc(6002)]
         // SetLayerVisibility(b8, u64)
         public ResultCode SetLayerVisibility(ServiceCtx context)
         {
-            Logger.PrintStub(LogClass.ServiceVi);
+            Logger.Stub?.PrintStub(LogClass.ServiceVi);
 
             return ResultCode.Success;
         }

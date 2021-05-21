@@ -4,14 +4,16 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvMap
 {
     class NvMapHandle
     {
-        public int  Handle;
-        public int  Id;
-        public int  Size;
-        public int  Align;
-        public int  Kind;
-        public long Address;
-        public bool Allocated;
-        public long DmaMapAddress;
+#pragma warning disable CS0649
+        public int   Handle;
+        public int   Id;
+#pragma warning restore CS0649
+        public int   Size;
+        public int   Align;
+        public int   Kind;
+        public ulong Address;
+        public bool  Allocated;
+        public ulong DmaMapAddress;
 
         private long _dupes;
 

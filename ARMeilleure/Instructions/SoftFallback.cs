@@ -420,6 +420,26 @@ namespace ARMeilleure.Instructions
                 return MathF.Truncate(value);
             }
         }
+
+        public static int FloatToInt32(float value)
+        {
+            return SatF32ToS32(RoundF(value));
+        }
+
+        public static int DoubleToInt32(double value)
+        {
+            return SatF64ToS32(Round(value));
+        }
+
+        public static uint FloatToUInt32(float value)
+        {
+            return SatF32ToU32(RoundF(value));
+        }
+
+        public static uint DoubleToUInt32(double value)
+        {
+            return SatF64ToU32(Round(value));
+        }
 #endregion
 
 #region "Saturation"
@@ -826,14 +846,6 @@ namespace ARMeilleure.Instructions
 
             return (ulong)count;
         }
-
-        public static ulong CountSetBits8(ulong value) // "size" is 8 (SIMD&FP Inst.).
-        {
-            value = ((value >> 1) & 0x55ul) + (value & 0x55ul);
-            value = ((value >> 2) & 0x33ul) + (value & 0x33ul);
-
-            return (value >> 4) + (value & 0x0ful);
-        }
 #endregion
 
 #region "Table"
@@ -997,13 +1009,13 @@ namespace ARMeilleure.Instructions
         {
             for (int e = 0; e <= 3; e++)
             {
-                uint t = ShaChoose(hash_abcd.GetUInt32(1),
-                                   hash_abcd.GetUInt32(2),
-                                   hash_abcd.GetUInt32(3));
+                uint t = ShaChoose(hash_abcd.Extract<uint>(1),
+                                   hash_abcd.Extract<uint>(2),
+                                   hash_abcd.Extract<uint>(3));
 
-                hash_e += Rol(hash_abcd.GetUInt32(0), 5) + t + wk.GetUInt32(e);
+                hash_e += Rol(hash_abcd.Extract<uint>(0), 5) + t + wk.Extract<uint>(e);
 
-                t = Rol(hash_abcd.GetUInt32(1), 30);
+                t = Rol(hash_abcd.Extract<uint>(1), 30);
 
                 hash_abcd.Insert(1, t);
 
@@ -1022,13 +1034,13 @@ namespace ARMeilleure.Instructions
         {
             for (int e = 0; e <= 3; e++)
             {
-                uint t = ShaMajority(hash_abcd.GetUInt32(1),
-                                     hash_abcd.GetUInt32(2),
-                                     hash_abcd.GetUInt32(3));
+                uint t = ShaMajority(hash_abcd.Extract<uint>(1),
+                                     hash_abcd.Extract<uint>(2),
+                                     hash_abcd.Extract<uint>(3));
 
-                hash_e += Rol(hash_abcd.GetUInt32(0), 5) + t + wk.GetUInt32(e);
+                hash_e += Rol(hash_abcd.Extract<uint>(0), 5) + t + wk.Extract<uint>(e);
 
-                t = Rol(hash_abcd.GetUInt32(1), 30);
+                t = Rol(hash_abcd.Extract<uint>(1), 30);
 
                 hash_abcd.Insert(1, t);
 
@@ -1042,13 +1054,13 @@ namespace ARMeilleure.Instructions
         {
             for (int e = 0; e <= 3; e++)
             {
-                uint t = ShaParity(hash_abcd.GetUInt32(1),
-                                   hash_abcd.GetUInt32(2),
-                                   hash_abcd.GetUInt32(3));
+                uint t = ShaParity(hash_abcd.Extract<uint>(1),
+                                   hash_abcd.Extract<uint>(2),
+                                   hash_abcd.Extract<uint>(3));
 
-                hash_e += Rol(hash_abcd.GetUInt32(0), 5) + t + wk.GetUInt32(e);
+                hash_e += Rol(hash_abcd.Extract<uint>(0), 5) + t + wk.Extract<uint>(e);
 
-                t = Rol(hash_abcd.GetUInt32(1), 30);
+                t = Rol(hash_abcd.Extract<uint>(1), 30);
 
                 hash_abcd.Insert(1, t);
 
@@ -1060,8 +1072,8 @@ namespace ARMeilleure.Instructions
 
         public static V128 Sha1SchedulePart1(V128 w0_3, V128 w4_7, V128 w8_11)
         {
-            ulong t2 = w4_7.GetUInt64(0);
-            ulong t1 = w0_3.GetUInt64(1);
+            ulong t2 = w4_7.Extract<ulong>(0);
+            ulong t1 = w0_3.Extract<ulong>(1);
 
             V128 result = new V128(t1, t2);
 
@@ -1072,17 +1084,17 @@ namespace ARMeilleure.Instructions
         {
             V128 t = tw0_3 ^ (w12_15 >> 32);
 
-            uint tE0 = t.GetUInt32(0);
-            uint tE1 = t.GetUInt32(1);
-            uint tE2 = t.GetUInt32(2);
-            uint tE3 = t.GetUInt32(3);
+            uint tE0 = t.Extract<uint>(0);
+            uint tE1 = t.Extract<uint>(1);
+            uint tE2 = t.Extract<uint>(2);
+            uint tE3 = t.Extract<uint>(3);
 
             return new V128(tE0.Rol(1), tE1.Rol(1), tE2.Rol(1), tE3.Rol(1) ^ tE0.Rol(2));
         }
 
         private static void Rol32_160(ref uint y, ref V128 x)
         {
-            uint xE3 = x.GetUInt32(3);
+            uint xE3 = x.Extract<uint>(3);
 
             x <<= 32;
             x.Insert(0, y);
@@ -1128,11 +1140,11 @@ namespace ARMeilleure.Instructions
 
             for (int e = 0; e <= 3; e++)
             {
-                uint elt = (e <= 2 ? w0_3 : w4_7).GetUInt32(e <= 2 ? e + 1 : 0);
+                uint elt = (e <= 2 ? w0_3 : w4_7).Extract<uint>(e <= 2 ? e + 1 : 0);
 
                 elt = elt.Ror(7) ^ elt.Ror(18) ^ elt.Lsr(3);
 
-                elt += w0_3.GetUInt32(e);
+                elt += w0_3.Extract<uint>(e);
 
                 result.Insert(e, elt);
             }
@@ -1144,7 +1156,7 @@ namespace ARMeilleure.Instructions
         {
             V128 result = new V128();
 
-            ulong t1 = w12_15.GetUInt64(1);
+            ulong t1 = w12_15.Extract<ulong>(1);
 
             for (int e = 0; e <= 1; e++)
             {
@@ -1152,12 +1164,12 @@ namespace ARMeilleure.Instructions
 
                 elt = elt.Ror(17) ^ elt.Ror(19) ^ elt.Lsr(10);
 
-                elt += w0_3.GetUInt32(e) + w8_11.GetUInt32(e + 1);
+                elt += w0_3.Extract<uint>(e) + w8_11.Extract<uint>(e + 1);
 
                 result.Insert(e, elt);
             }
 
-            t1 = result.GetUInt64(0);
+            t1 = result.Extract<ulong>(0);
 
             for (int e = 2; e <= 3; e++)
             {
@@ -1165,7 +1177,7 @@ namespace ARMeilleure.Instructions
 
                 elt = elt.Ror(17) ^ elt.Ror(19) ^ elt.Lsr(10);
 
-                elt += w0_3.GetUInt32(e) + (e == 2 ? w8_11 : w12_15).GetUInt32(e == 2 ? 3 : 0);
+                elt += w0_3.Extract<uint>(e) + (e == 2 ? w8_11 : w12_15).Extract<uint>(e == 2 ? 3 : 0);
 
                 result.Insert(e, elt);
             }
@@ -1177,21 +1189,21 @@ namespace ARMeilleure.Instructions
         {
             for (int e = 0; e <= 3; e++)
             {
-                uint chs = ShaChoose(y.GetUInt32(0),
-                                     y.GetUInt32(1),
-                                     y.GetUInt32(2));
+                uint chs = ShaChoose(y.Extract<uint>(0),
+                                     y.Extract<uint>(1),
+                                     y.Extract<uint>(2));
 
-                uint maj = ShaMajority(x.GetUInt32(0),
-                                       x.GetUInt32(1),
-                                       x.GetUInt32(2));
+                uint maj = ShaMajority(x.Extract<uint>(0),
+                                       x.Extract<uint>(1),
+                                       x.Extract<uint>(2));
 
-                uint t1 = y.GetUInt32(3) + ShaHashSigma1(y.GetUInt32(0)) + chs + w.GetUInt32(e);
+                uint t1 = y.Extract<uint>(3) + ShaHashSigma1(y.Extract<uint>(0)) + chs + w.Extract<uint>(e);
 
-                uint t2 = t1 + x.GetUInt32(3);
+                uint t2 = t1 + x.Extract<uint>(3);
 
                 x.Insert(3, t2);
 
-                t2 = t1 + ShaHashSigma0(x.GetUInt32(0)) + maj;
+                t2 = t1 + ShaHashSigma0(x.Extract<uint>(0)) + maj;
 
                 y.Insert(3, t2);
 
@@ -1203,8 +1215,8 @@ namespace ARMeilleure.Instructions
 
         private static void Rol32_256(ref V128 y, ref V128 x)
         {
-            uint yE3 = y.GetUInt32(3);
-            uint xE3 = x.GetUInt32(3);
+            uint yE3 = y.Extract<uint>(3);
+            uint xE3 = x.Extract<uint>(3);
 
             y <<= 32;
             x <<= 32;
@@ -1241,73 +1253,21 @@ namespace ARMeilleure.Instructions
         }
 #endregion
 
-#region "Reverse"
-        public static uint ReverseBits8(uint value)
+        public static V128 PolynomialMult64_128(ulong op1, ulong op2)
         {
-            value = ((value & 0xaa) >> 1) | ((value & 0x55) << 1);
-            value = ((value & 0xcc) >> 2) | ((value & 0x33) << 2);
+            V128 result = V128.Zero;
 
-            return (value >> 4) | ((value & 0x0f) << 4);
-        }
+            V128 op2_128 = new V128(op2, 0);
 
-        public static uint ReverseBits32(uint value)
-        {
-            value = ((value & 0xaaaaaaaa) >> 1) | ((value & 0x55555555) << 1);
-            value = ((value & 0xcccccccc) >> 2) | ((value & 0x33333333) << 2);
-            value = ((value & 0xf0f0f0f0) >> 4) | ((value & 0x0f0f0f0f) << 4);
-            value = ((value & 0xff00ff00) >> 8) | ((value & 0x00ff00ff) << 8);
-
-            return (value >> 16) | (value << 16);
-        }
-
-        public static ulong ReverseBits64(ulong value)
-        {
-            value = ((value & 0xaaaaaaaaaaaaaaaa) >> 1 ) | ((value & 0x5555555555555555) << 1 );
-            value = ((value & 0xcccccccccccccccc) >> 2 ) | ((value & 0x3333333333333333) << 2 );
-            value = ((value & 0xf0f0f0f0f0f0f0f0) >> 4 ) | ((value & 0x0f0f0f0f0f0f0f0f) << 4 );
-            value = ((value & 0xff00ff00ff00ff00) >> 8 ) | ((value & 0x00ff00ff00ff00ff) << 8 );
-            value = ((value & 0xffff0000ffff0000) >> 16) | ((value & 0x0000ffff0000ffff) << 16);
-
-            return (value >> 32) | (value << 32);
-        }
-
-        public static uint ReverseBytes16_32(uint value) => (uint)ReverseBytes16_64(value);
-
-        public static ulong ReverseBytes16_64(ulong value) => ReverseBytes(value, RevSize.Rev16);
-        public static ulong ReverseBytes32_64(ulong value) => ReverseBytes(value, RevSize.Rev32);
-
-        private enum RevSize
-        {
-            Rev16,
-            Rev32,
-            Rev64
-        }
-
-        private static ulong ReverseBytes(ulong value, RevSize size)
-        {
-            value = ((value & 0xff00ff00ff00ff00) >> 8) | ((value & 0x00ff00ff00ff00ff) << 8);
-
-            if (size == RevSize.Rev16)
+            for (int i = 0; i < 64; i++)
             {
-                return value;
+                if (((op1 >> i) & 1) == 1)
+                {
+                    result ^= op2_128 << i;
+                }
             }
 
-            value = ((value & 0xffff0000ffff0000) >> 16) | ((value & 0x0000ffff0000ffff) << 16);
-
-            if (size == RevSize.Rev32)
-            {
-                return value;
-            }
-
-            value = ((value & 0xffffffff00000000) >> 32) | ((value & 0x00000000ffffffff) << 32);
-
-            if (size == RevSize.Rev64)
-            {
-                return value;
-            }
-
-            throw new ArgumentException(nameof(size));
+            return result;
         }
-#endregion
     }
 }

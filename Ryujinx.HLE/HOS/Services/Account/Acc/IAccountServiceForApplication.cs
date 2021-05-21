@@ -1,209 +1,122 @@
-using ARMeilleure.Memory;
 using Ryujinx.Common.Logging;
+using Ryujinx.Cpu;
+using Ryujinx.HLE.HOS.Services.Account.Acc.AccountService;
 using Ryujinx.HLE.HOS.Services.Arp;
-using Ryujinx.HLE.Utilities;
-using System.Collections.Generic;
 
 namespace Ryujinx.HLE.HOS.Services.Account.Acc
 {
-    [Service("acc:u0")]
+    [Service("acc:u0", AccountServiceFlag.Application)] // Max Sessions: 4
     class IAccountServiceForApplication : IpcService
     {
-        private bool _userRegistrationRequestPermitted = false;
+        private ApplicationServiceServer _applicationServiceServer;
 
-        private ApplicationLaunchProperty _applicationLaunchProperty;
+        public IAccountServiceForApplication(ServiceCtx context, AccountServiceFlag serviceFlag)
+        {
+            _applicationServiceServer = new ApplicationServiceServer(serviceFlag);
+        }
 
-        public IAccountServiceForApplication(ServiceCtx context) { }
-
-        [Command(0)]
+        [CommandHipc(0)]
         // GetUserCount() -> i32
         public ResultCode GetUserCount(ServiceCtx context)
         {
-            context.ResponseData.Write(context.Device.System.State.Account.GetUserCount());
-
-            return ResultCode.Success;
+            return _applicationServiceServer.GetUserCountImpl(context);
         }
 
-        [Command(1)]
+        [CommandHipc(1)]
         // GetUserExistence(nn::account::Uid) -> bool
         public ResultCode GetUserExistence(ServiceCtx context)
         {
-            UInt128 userId = new UInt128(context.RequestData.ReadBytes(0x10));
-
-            if (userId.IsNull)
-            {
-                return ResultCode.NullArgument;
-            }
-
-            context.ResponseData.Write(context.Device.System.State.Account.TryGetUser(userId, out _));
-
-            return ResultCode.Success;
+            return _applicationServiceServer.GetUserExistenceImpl(context);
         }
 
-        [Command(2)]
+        [CommandHipc(2)]
         // ListAllUsers() -> array<nn::account::Uid, 0xa>
         public ResultCode ListAllUsers(ServiceCtx context)
         {
-            return WriteUserList(context, context.Device.System.State.Account.GetAllUsers());
+            return _applicationServiceServer.ListAllUsers(context);
         }
 
-        [Command(3)]
+        [CommandHipc(3)]
         // ListOpenUsers() -> array<nn::account::Uid, 0xa>
         public ResultCode ListOpenUsers(ServiceCtx context)
         {
-            return WriteUserList(context, context.Device.System.State.Account.GetOpenedUsers());
+            return _applicationServiceServer.ListOpenUsers(context);
         }
 
-        private ResultCode WriteUserList(ServiceCtx context, IEnumerable<UserProfile> profiles)
-        {
-            if (context.Request.RecvListBuff.Count == 0)
-            {
-                return ResultCode.InvalidInputBuffer;
-            }
-
-            long outputPosition = context.Request.RecvListBuff[0].Position;
-            long outputSize     = context.Request.RecvListBuff[0].Size;
-
-            MemoryHelper.FillWithZeros(context.Memory, outputPosition, (int)outputSize);
-
-            ulong offset = 0;
-
-            foreach (UserProfile userProfile in profiles)
-            {
-                if (offset + 0x10 > (ulong)outputSize)
-                {
-                    break;
-                }
-
-                context.Memory.WriteInt64(outputPosition + (long)offset,     userProfile.UserId.Low);
-                context.Memory.WriteInt64(outputPosition + (long)offset + 8, userProfile.UserId.High);
-
-                offset += 0x10;
-            }
-
-            return ResultCode.Success;
-        }
-
-        [Command(4)]
+        [CommandHipc(4)]
         // GetLastOpenedUser() -> nn::account::Uid
         public ResultCode GetLastOpenedUser(ServiceCtx context)
         {
-            context.Device.System.State.Account.LastOpenedUser.UserId.Write(context.ResponseData);
-
-            return ResultCode.Success;
+            return _applicationServiceServer.GetLastOpenedUser(context);
         }
 
-        [Command(5)]
+        [CommandHipc(5)]
         // GetProfile(nn::account::Uid) -> object<nn::account::profile::IProfile>
         public ResultCode GetProfile(ServiceCtx context)
         {
-            UInt128 userId = new UInt128(context.RequestData.ReadBytes(0x10));
+            ResultCode resultCode = _applicationServiceServer.GetProfile(context, out IProfile iProfile);
 
-            if (!context.Device.System.State.Account.TryGetUser(userId, out UserProfile userProfile))
+            if (resultCode == ResultCode.Success)
             {
-                Logger.PrintWarning(LogClass.ServiceAcc, $"User 0x{userId} not found!");
-
-                return ResultCode.UserNotFound;
+                MakeObject(context, iProfile);
             }
 
-            MakeObject(context, new IProfile(userProfile));
-
-            // Doesn't occur in our case.
-            // return ResultCode.NullObject;
-
-            return ResultCode.Success;
+            return resultCode;
         }
 
-        [Command(50)]
-        // IsUserRegistrationRequestPermitted(u64, pid) -> bool
+        [CommandHipc(50)]
+        // IsUserRegistrationRequestPermitted(pid) -> bool
         public ResultCode IsUserRegistrationRequestPermitted(ServiceCtx context)
         {
-            // The u64 argument seems to be unused by account.
-            context.ResponseData.Write(_userRegistrationRequestPermitted);
-
-            return ResultCode.Success;
+            // NOTE: pid is unused.
+            return _applicationServiceServer.IsUserRegistrationRequestPermitted(context);
         }
 
-        [Command(51)]
+        [CommandHipc(51)]
         // TrySelectUserWithoutInteraction(bool) -> nn::account::Uid
         public ResultCode TrySelectUserWithoutInteraction(ServiceCtx context)
         {
-            if (context.Device.System.State.Account.GetUserCount() != 1)
-            {
-                // Invalid UserId.
-                new UInt128(0, 0).Write(context.ResponseData);
-
-                return 0;
-            }
-
-            bool baasCheck = context.RequestData.ReadBoolean();
-
-            if (baasCheck)
-            {
-                // This checks something related to baas (online), and then return an invalid UserId if the check in baas returns an error code.
-                // In our case, we can just log it for now.
-
-                Logger.PrintStub(LogClass.ServiceAcc, new { baasCheck });
-            }
-
-            // As we returned an invalid UserId if there is more than one user earlier, now we can return only the first one.
-            context.Device.System.State.Account.GetFirst().UserId.Write(context.ResponseData);
-
-            return ResultCode.Success;
+            return _applicationServiceServer.TrySelectUserWithoutInteraction(context);
         }
 
-        [Command(100)]
-        [Command(140)] // 6.0.0+
-        // InitializeApplicationInfo(u64, pid)
-        // Both calls (100, 140) use the same submethod, maybe there's something different further along when arp:r is called?
+        [CommandHipc(100)]
+        [CommandHipc(140)] // 6.0.0+
+        // InitializeApplicationInfo(u64 pid_placeholder, pid)
         public ResultCode InitializeApplicationInfo(ServiceCtx context)
         {
-            if (_applicationLaunchProperty != null)
-            {
-                return ResultCode.ApplicationLaunchPropertyAlreadyInit;
-            }
+            // NOTE: In call 100, account service use the pid_placeholder instead of the real pid, which is wrong, call 140 fix that.
 
-            // The u64 argument seems to be unused by account.
-            long unknown = context.RequestData.ReadInt64();
+            /*
 
             // TODO: Account actually calls nn::arp::detail::IReader::GetApplicationLaunchProperty() with the current PID and store the result (ApplicationLaunchProperty) internally.
             //       For now we can hardcode values, and fix it after GetApplicationLaunchProperty is implemented.
-
-            /*
-            if (nn::arp::detail::IReader::GetApplicationLaunchProperty() == 0xCC9D) // InvalidProcessId
+            if (nn::arp::detail::IReader::GetApplicationLaunchProperty() == 0xCC9D) // ResultCode.InvalidProcessId
             {
-                _applicationLaunchProperty = ApplicationLaunchProperty.Default;
-
                 return ResultCode.InvalidArgument;
             }
-            else
-            */
-            {
-                _applicationLaunchProperty = ApplicationLaunchProperty.GetByPid(context);
-            }
 
-            Logger.PrintStub(LogClass.ServiceAcc, new { unknown });
+            */
+
+            // TODO: Determine where ApplicationLaunchProperty is used.
+            ApplicationLaunchProperty applicationLaunchProperty = ApplicationLaunchProperty.GetByPid(context);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceAcc, new { applicationLaunchProperty.TitleId });
 
             return ResultCode.Success;
         }
 
-        [Command(101)]
+        [CommandHipc(101)]
         // GetBaasAccountManagerForApplication(nn::account::Uid) -> object<nn::account::baas::IManagerForApplication>
         public ResultCode GetBaasAccountManagerForApplication(ServiceCtx context)
         {
-            UInt128 userId = new UInt128(context.RequestData.ReadBytes(0x10));
+            ResultCode resultCode = _applicationServiceServer.CheckUserId(context, out UserId userId);
 
-            if (userId.IsNull)
+            if (resultCode != ResultCode.Success)
             {
-                return ResultCode.NullArgument;
+                return resultCode;
             }
 
-            if (_applicationLaunchProperty == null)
-            {
-                return ResultCode.InvalidArgument;
-            }
-
-            MakeObject(context, new IManagerForApplication(userId, _applicationLaunchProperty));
+            MakeObject(context, new IManagerForApplication(userId));
 
             // Doesn't occur in our case.
             // return ResultCode.NullObject;
@@ -211,85 +124,53 @@ namespace Ryujinx.HLE.HOS.Services.Account.Acc
             return ResultCode.Success;
         }
 
-        [Command(110)]
+        [CommandHipc(110)]
         // StoreSaveDataThumbnail(nn::account::Uid, buffer<bytes, 5>)
         public ResultCode StoreSaveDataThumbnail(ServiceCtx context)
         {
-            if (_applicationLaunchProperty == null)
-            {
-                return ResultCode.InvalidArgument;
-            }
-
-            UInt128 userId = new UInt128(context.RequestData.ReadBytes(0x10));
-
-            if (userId.IsNull)
-            {
-                return ResultCode.NullArgument;
-            }
-
-            if (context.Request.SendBuff.Count == 0)
-            {
-                return ResultCode.InvalidInputBuffer;
-            }
-
-            long inputPosition = context.Request.SendBuff[0].Position;
-            long inputSize     = context.Request.SendBuff[0].Size;
-
-            if (inputSize != 0x24000)
-            {
-                return ResultCode.InvalidInputBufferSize;
-            }
-
-            byte[] thumbnailBuffer = context.Memory.ReadBytes(inputPosition, inputSize);
-
-            // TODO: Store thumbnailBuffer somewhere, in save data 0x8000000000000010 ?
-
-            Logger.PrintStub(LogClass.ServiceAcc);
-
-            return ResultCode.Success;
+            return _applicationServiceServer.StoreSaveDataThumbnail(context);
         }
 
-        [Command(111)]
+        [CommandHipc(111)]
         // ClearSaveDataThumbnail(nn::account::Uid)
         public ResultCode ClearSaveDataThumbnail(ServiceCtx context)
         {
-            if (_applicationLaunchProperty == null)
-            {
-                return ResultCode.InvalidArgument;
-            }
+            return _applicationServiceServer.ClearSaveDataThumbnail(context);
+        }
 
-            UInt128 userId = new UInt128(context.RequestData.ReadBytes(0x10));
+        [CommandHipc(131)] // 6.0.0+
+        // ListOpenContextStoredUsers() -> array<nn::account::Uid, 0xa>
+        public ResultCode ListOpenContextStoredUsers(ServiceCtx context)
+        {
+            ulong outputPosition = context.Request.RecvListBuff[0].Position;
+            ulong outputSize     = context.Request.RecvListBuff[0].Size;
 
-            if (userId.IsNull)
-            {
-                return ResultCode.NullArgument;
-            }
+            MemoryHelper.FillWithZeros(context.Memory, outputPosition, (int)outputSize);
 
-            // TODO: Clear the Thumbnail somewhere, in save data 0x8000000000000010 ?
-
-            Logger.PrintStub(LogClass.ServiceAcc);
+            // TODO: This seems to write stored userids of the OpenContext in the buffer. We needs to determine them.
+            
+            Logger.Stub?.PrintStub(LogClass.ServiceAcc);
 
             return ResultCode.Success;
         }
 
-        [Command(150)] // 6.0.0+
+        [CommandHipc(141)] // 6.0.0+
+        // ListQualifiedUsers() -> array<nn::account::Uid, 0xa>
+        public ResultCode ListQualifiedUsers(ServiceCtx context)
+        {
+            return _applicationServiceServer.ListQualifiedUsers(context);
+        }
+
+        [CommandHipc(150)] // 6.0.0+
         // IsUserAccountSwitchLocked() -> bool
         public ResultCode IsUserAccountSwitchLocked(ServiceCtx context)
         {
-            // TODO : Validate the following check.
-            /*
-            if (_applicationLaunchProperty != null)
-            {
-                return ResultCode.ApplicationLaunchPropertyAlreadyInit;
-            }
-            */
+            // TODO: Account actually calls nn::arp::detail::IReader::GetApplicationControlProperty() with the current Pid and store the result (NACP file) internally.
+            //       But since we use LibHac and we load one Application at a time, it's not necessary.
 
-            // Account actually calls nn::arp::detail::IReader::GetApplicationControlProperty() with the current PID and store the result (NACP File) internally.
-            // But since we use LibHac and we load one Application at a time, it's not necessary.
+            context.ResponseData.Write(context.Device.Application.ControlData.Value.UserAccountSwitchLock);
 
-            context.ResponseData.Write(context.Device.System.ControlData.UserAccountSwitchLock);
-
-            Logger.PrintStub(LogClass.ServiceAcc);
+            Logger.Stub?.PrintStub(LogClass.ServiceAcc);
 
             return ResultCode.Success;
         }

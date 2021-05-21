@@ -1,23 +1,24 @@
+using System.Diagnostics;
 using System.Threading;
 
 namespace Ryujinx.HLE.HOS.Kernel.Common
 {
     class KAutoObject
     {
-        protected Horizon System;
+        protected KernelContext KernelContext;
 
         private int _referenceCount;
 
-        public KAutoObject(Horizon system)
+        public KAutoObject(KernelContext context)
         {
-            System = system;
+            KernelContext = context;
 
             _referenceCount = 1;
         }
 
         public virtual KernelResult SetName(string name)
         {
-            if (!System.AutoObjectNames.TryAdd(name, this))
+            if (!KernelContext.AutoObjectNames.TryAdd(name, this))
             {
                 return KernelResult.InvalidState;
             }
@@ -25,9 +26,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Common
             return KernelResult.Success;
         }
 
-        public static KernelResult RemoveName(Horizon system, string name)
+        public static KernelResult RemoveName(KernelContext context, string name)
         {
-            if (!system.AutoObjectNames.TryRemove(name, out _))
+            if (!context.AutoObjectNames.TryRemove(name, out _))
             {
                 return KernelResult.NotFound;
             }
@@ -35,9 +36,9 @@ namespace Ryujinx.HLE.HOS.Kernel.Common
             return KernelResult.Success;
         }
 
-        public static KAutoObject FindNamedObject(Horizon system, string name)
+        public static KAutoObject FindNamedObject(KernelContext context, string name)
         {
-            if (system.AutoObjectNames.TryGetValue(name, out KAutoObject obj))
+            if (context.AutoObjectNames.TryGetValue(name, out KAutoObject obj))
             {
                 return obj;
             }
@@ -47,17 +48,25 @@ namespace Ryujinx.HLE.HOS.Kernel.Common
 
         public void IncrementReferenceCount()
         {
-            Interlocked.Increment(ref _referenceCount);
+            int newRefCount = Interlocked.Increment(ref _referenceCount);
+
+            Debug.Assert(newRefCount >= 2);
         }
 
         public void DecrementReferenceCount()
         {
-            if (Interlocked.Decrement(ref _referenceCount) == 0)
+            int newRefCount = Interlocked.Decrement(ref _referenceCount);
+
+            Debug.Assert(newRefCount >= 0);
+
+            if (newRefCount == 0)
             {
                 Destroy();
             }
         }
 
-        protected virtual void Destroy() { }
+        protected virtual void Destroy()
+        {
+        }
     }
 }

@@ -48,14 +48,14 @@ namespace Ryujinx.HLE.HOS.Services.Time
             StandardNetworkSystemClock  = new StandardNetworkSystemClockCore(StandardSteadyClock);
             StandardUserSystemClock     = new StandardUserSystemClockCore(StandardLocalSystemClock, StandardNetworkSystemClock);
             TimeZone                    = new TimeZoneContentManager();
-            EphemeralNetworkSystemClock = new EphemeralNetworkSystemClockCore(StandardSteadyClock);
+            EphemeralNetworkSystemClock = new EphemeralNetworkSystemClockCore(TickBasedSteadyClock);
             SharedMemory                = new TimeSharedMemory();
             LocalClockContextWriter     = new LocalSystemClockContextWriter(SharedMemory);
             NetworkClockContextWriter   = new NetworkSystemClockContextWriter(SharedMemory);
             EphemeralClockContextWriter = new EphemeralNetworkSystemClockContextWriter();
         }
 
-        public void Initialize(Switch device, Horizon system, KSharedMemory sharedMemory, long timeSharedMemoryAddress, int timeSharedMemorySize)
+        public void Initialize(Switch device, Horizon system, KSharedMemory sharedMemory, ulong timeSharedMemoryAddress, int timeSharedMemorySize)
         {
             SharedMemory.Initialize(device, sharedMemory, timeSharedMemoryAddress, timeSharedMemorySize);
 

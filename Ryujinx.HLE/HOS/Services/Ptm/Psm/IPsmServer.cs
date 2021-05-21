@@ -7,7 +7,7 @@ namespace Ryujinx.HLE.HOS.Services.Ptm.Psm
     {
         public IPsmServer(ServiceCtx context) { }
 
-        [Command(0)]
+        [CommandHipc(0)]
         // GetBatteryChargePercentage() -> u32
         public static ResultCode GetBatteryChargePercentage(ServiceCtx context)
         {
@@ -15,12 +15,12 @@ namespace Ryujinx.HLE.HOS.Services.Ptm.Psm
 
             context.ResponseData.Write(chargePercentage);
 
-            Logger.PrintStub(LogClass.ServicePsm, new { chargePercentage });
+            Logger.Stub?.PrintStub(LogClass.ServicePsm, new { chargePercentage });
 
             return ResultCode.Success;
         }
 
-        [Command(1)]
+        [CommandHipc(1)]
         // GetChargerType() -> u32
         public static ResultCode GetChargerType(ServiceCtx context)
         {
@@ -28,12 +28,12 @@ namespace Ryujinx.HLE.HOS.Services.Ptm.Psm
 
             context.ResponseData.Write((int)chargerType);
 
-            Logger.PrintStub(LogClass.ServicePsm, new { chargerType });
+            Logger.Stub?.PrintStub(LogClass.ServicePsm, new { chargerType });
 
             return ResultCode.Success;
         }
 
-        [Command(7)]
+        [CommandHipc(7)]
         // OpenSession() -> IPsmSession
         public ResultCode OpenSession(ServiceCtx context)
         {

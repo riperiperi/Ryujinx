@@ -1,3 +1,4 @@
+using ARMeilleure.Memory;
 using System;
 using System.Diagnostics;
 
@@ -5,7 +6,7 @@ namespace ARMeilleure.State
 {
     public class ExecutionContext
     {
-        private const int MinCountForCheck = 40000;
+        private const int MinCountForCheck = 4000;
 
         private NativeContext _nativeContext;
 
@@ -31,11 +32,20 @@ namespace ARMeilleure.State
             }
         }
 
+        // CNTVCT_EL0 = CNTPCT_EL0 - CNTVOFF_EL2
+        // Since EL2 isn't implemented, CNTVOFF_EL2 = 0
+        public ulong CntvctEl0 => CntpctEl0;
+
+        public static TimeSpan ElapsedTime => _tickCounter.Elapsed;
+        public static long ElapsedTicks => _tickCounter.ElapsedTicks;
+        public static double TickFrequency => _hostTickFreq;
+
         public long TpidrEl0 { get; set; }
         public long Tpidr    { get; set; }
 
         public FPCR Fpcr { get; set; }
         public FPSR Fpsr { get; set; }
+        public FPCR StandardFpcrValue => (Fpcr & (FPCR.Ahp)) | FPCR.Dn | FPCR.Fz;
 
         public bool IsAarch32 { get; set; }
 
@@ -56,7 +66,7 @@ namespace ARMeilleure.State
             }
         }
 
-        public bool Running { get; set; }
+        public bool Running { get; private set; }
 
         public event EventHandler<EventArgs>              Interrupt;
         public event EventHandler<InstExceptionEventArgs> Break;
@@ -72,9 +82,9 @@ namespace ARMeilleure.State
             _tickCounter.Start();
         }
 
-        public ExecutionContext()
+        public ExecutionContext(IJitMemoryAllocator allocator)
         {
-            _nativeContext = new NativeContext();
+            _nativeContext = new NativeContext(allocator);
 
             Running = true;
 
@@ -89,6 +99,9 @@ namespace ARMeilleure.State
 
         public bool GetPstateFlag(PState flag)             => _nativeContext.GetPstateFlag(flag);
         public void SetPstateFlag(PState flag, bool value) => _nativeContext.SetPstateFlag(flag, value);
+
+        public bool GetFPstateFlag(FPState flag) => _nativeContext.GetFPStateFlag(flag);
+        public void SetFPstateFlag(FPState flag, bool value) => _nativeContext.SetFPStateFlag(flag, value);
 
         internal void CheckInterrupt()
         {
@@ -120,6 +133,12 @@ namespace ARMeilleure.State
         internal void OnUndefined(ulong address, int opCode)
         {
             Undefined?.Invoke(this, new InstUndefinedEventArgs(address, opCode));
+        }
+
+        public void StopRunning()
+        {
+            Running = false;
+            _nativeContext.SetCounter(0);
         }
 
         public void Dispose()

@@ -30,6 +30,8 @@ namespace Ryujinx.HLE.HOS.Applets
 
             AppletStateChanged?.Invoke(this, null);
 
+            _system.ReturnFocus();
+
             return ResultCode.Success;
         }
 
@@ -40,7 +42,7 @@ namespace Ryujinx.HLE.HOS.Applets
 
         private byte[] BuildResponse()
         {
-            UserProfile currentUser = _system.State.Account.LastOpenedUser;
+            UserProfile currentUser = _system.AccountManager.LastOpenedUser;
 
             using (MemoryStream stream = new MemoryStream())
             using (BinaryWriter writer = new BinaryWriter(stream))

@@ -1,8 +1,9 @@
 ﻿using Ryujinx.Common.Logging;
-using Ryujinx.Graphics.Memory;
+using Ryujinx.Graphics.Gpu.Memory;
 using Ryujinx.HLE.HOS.Kernel.Process;
 using Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu.Types;
 using Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvMap;
+using Ryujinx.Memory;
 using System;
 using System.Collections.Concurrent;
 
@@ -11,8 +12,12 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
     class NvHostAsGpuDeviceFile : NvDeviceFile
     {
         private static ConcurrentDictionary<KProcess, AddressSpaceContext> _addressSpaceContextRegistry = new ConcurrentDictionary<KProcess, AddressSpaceContext>();
+        private NvMemoryAllocator _memoryAllocator;
 
-        public NvHostAsGpuDeviceFile(ServiceCtx context) : base(context) { }
+        public NvHostAsGpuDeviceFile(ServiceCtx context, IVirtualMemoryManager memory, long owner) : base(context, owner)
+        {
+            _memoryAllocator = context.Device.MemoryAllocator;
+        }
 
         public override NvInternalResult Ioctl(NvIoctl command, Span<byte> arguments)
         {
@@ -72,14 +77,14 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
 
         private NvInternalResult BindChannel(ref BindChannelArguments arguments)
         {
-            Logger.PrintStub(LogClass.ServiceNv);
+            Logger.Stub?.PrintStub(LogClass.ServiceNv);
 
             return NvInternalResult.Success;
         }
 
         private NvInternalResult AllocSpace(ref AllocSpaceArguments arguments)
         {
-            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Owner);
+            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Context);
 
             ulong size = (ulong)arguments.Pages * (ulong)arguments.PageSize;
 
@@ -91,24 +96,43 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
                 // the Offset field holds the alignment size instead.
                 if ((arguments.Flags & AddressSpaceFlags.FixedOffset) != 0)
                 {
-                    arguments.Offset = addressSpaceContext.Vmm.ReserveFixed(arguments.Offset, (long)size);
+                    bool regionInUse = _memoryAllocator.IsRegionInUse(arguments.Offset, size, out ulong freeAddressStartPosition);
+                    ulong address;
+
+                    if (!regionInUse)
+                    {
+                        _memoryAllocator.AllocateRange(arguments.Offset, size, freeAddressStartPosition);
+                        address = freeAddressStartPosition;
+                    }
+                    else
+                    {
+                        address = NvMemoryAllocator.PteUnmapped;
+                    }
+
+                    arguments.Offset = address;
                 }
                 else
                 {
-                    arguments.Offset = addressSpaceContext.Vmm.Reserve((long)size, arguments.Offset);
+                    ulong address = _memoryAllocator.GetFreeAddress(size, out ulong freeAddressStartPosition, arguments.Offset);
+                    if (address != NvMemoryAllocator.PteUnmapped)
+                    {
+                        _memoryAllocator.AllocateRange(address, size, freeAddressStartPosition);
+                    }
+
+                    arguments.Offset = address;
                 }
 
-                if (arguments.Offset < 0)
+                if (arguments.Offset == NvMemoryAllocator.PteUnmapped)
                 {
                     arguments.Offset = 0;
 
-                    Logger.PrintWarning(LogClass.ServiceNv, $"Failed to allocate size {size:x16}!");
+                    Logger.Warning?.Print(LogClass.ServiceNv, $"Failed to allocate size {size:x16}!");
 
                     result = NvInternalResult.OutOfMemory;
                 }
                 else
                 {
-                    addressSpaceContext.AddReservation(arguments.Offset, (long)size);
+                    addressSpaceContext.AddReservation(arguments.Offset, size);
                 }
             }
 
@@ -117,7 +141,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
 
         private NvInternalResult FreeSpace(ref FreeSpaceArguments arguments)
         {
-            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Owner);
+            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Context);
 
             NvInternalResult result = NvInternalResult.Success;
 
@@ -127,11 +151,12 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
 
                 if (addressSpaceContext.RemoveReservation(arguments.Offset))
                 {
-                    addressSpaceContext.Vmm.Free(arguments.Offset, (long)size);
+                    _memoryAllocator.DeallocateRange(arguments.Offset, size);
+                    addressSpaceContext.Gmm.Unmap(arguments.Offset, size);
                 }
                 else
                 {
-                    Logger.PrintWarning(LogClass.ServiceNv,
+                    Logger.Warning?.Print(LogClass.ServiceNv,
                         $"Failed to free offset 0x{arguments.Offset:x16} size 0x{size:x16}!");
 
                     result = NvInternalResult.InvalidInput;
@@ -143,20 +168,21 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
 
         private NvInternalResult UnmapBuffer(ref UnmapBufferArguments arguments)
         {
-            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Owner);
+            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Context);
 
             lock (addressSpaceContext)
             {
-                if (addressSpaceContext.RemoveMap(arguments.Offset, out long size))
+                if (addressSpaceContext.RemoveMap(arguments.Offset, out ulong size))
                 {
                     if (size != 0)
                     {
-                        addressSpaceContext.Vmm.Free(arguments.Offset, size);
+                        _memoryAllocator.DeallocateRange(arguments.Offset, size);
+                        addressSpaceContext.Gmm.Unmap(arguments.Offset, size);
                     }
                 }
                 else
                 {
-                    Logger.PrintWarning(LogClass.ServiceNv, $"Invalid buffer offset {arguments.Offset:x16}!");
+                    Logger.Warning?.Print(LogClass.ServiceNv, $"Invalid buffer offset {arguments.Offset:x16}!");
                 }
             }
 
@@ -165,20 +191,11 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
 
         private NvInternalResult MapBufferEx(ref MapBufferExArguments arguments)
         {
-            const string mapErrorMsg = "Failed to map fixed buffer with offset 0x{0:x16} and size 0x{1:x16}!";
+            const string mapErrorMsg = "Failed to map fixed buffer with offset 0x{0:x16}, size 0x{1:x16} and alignment 0x{2:x16}!";
 
-            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Owner);
+            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Context);
 
-            NvMapHandle map = NvMapDeviceFile.GetMapFromHandle(Owner, arguments.NvMapHandle, true);
-
-            if (map == null)
-            {
-                Logger.PrintWarning(LogClass.ServiceNv, $"Invalid NvMap handle 0x{arguments.NvMapHandle:x8}!");
-
-                return NvInternalResult.InvalidInput;
-            }
-
-            long physicalAddress;
+            ulong physicalAddress;
 
             if ((arguments.Flags & AddressSpaceFlags.RemapSubRange) != 0)
             {
@@ -186,33 +203,41 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
                 {
                     if (addressSpaceContext.TryGetMapPhysicalAddress(arguments.Offset, out physicalAddress))
                     {
-                        long virtualAddress = arguments.Offset + arguments.BufferOffset;
+                        ulong virtualAddress = arguments.Offset + arguments.BufferOffset;
 
                         physicalAddress += arguments.BufferOffset;
-
-                        if (addressSpaceContext.Vmm.Map(physicalAddress, virtualAddress, arguments.MappingSize) < 0)
-                        {
-                            string message = string.Format(mapErrorMsg, virtualAddress, arguments.MappingSize);
-
-                            Logger.PrintWarning(LogClass.ServiceNv, message);
-
-                            return NvInternalResult.InvalidInput;
-                        }
+                        addressSpaceContext.Gmm.Map(physicalAddress, virtualAddress, arguments.MappingSize);
 
                         return NvInternalResult.Success;
                     }
                     else
                     {
-                        Logger.PrintWarning(LogClass.ServiceNv, $"Address 0x{arguments.Offset:x16} not mapped!");
+                        Logger.Warning?.Print(LogClass.ServiceNv, $"Address 0x{arguments.Offset:x16} not mapped!");
 
                         return NvInternalResult.InvalidInput;
                     }
                 }
             }
 
+            NvMapHandle map = NvMapDeviceFile.GetMapFromHandle(Owner, arguments.NvMapHandle);
+
+            if (map == null)
+            {
+                Logger.Warning?.Print(LogClass.ServiceNv, $"Invalid NvMap handle 0x{arguments.NvMapHandle:x8}!");
+
+                return NvInternalResult.InvalidInput;
+            }
+
+            ulong pageSize = (ulong)arguments.PageSize;
+
+            if (pageSize == 0)
+            {
+                pageSize = (ulong)map.Align;
+            }
+
             physicalAddress = map.Address + arguments.BufferOffset;
 
-            long size = arguments.MappingSize;
+            ulong size = arguments.MappingSize;
 
             if (size == 0)
             {
@@ -229,29 +254,36 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
 
                 if (!virtualAddressAllocated)
                 {
-                    if (addressSpaceContext.ValidateFixedBuffer(arguments.Offset, size))
+                    if (addressSpaceContext.ValidateFixedBuffer(arguments.Offset, size, pageSize))
                     {
-                        arguments.Offset = addressSpaceContext.Vmm.Map(physicalAddress, arguments.Offset, size);
+                        addressSpaceContext.Gmm.Map(physicalAddress, arguments.Offset, size);
                     }
                     else
                     {
-                        string message = string.Format(mapErrorMsg, arguments.Offset, size);
+                        string message = string.Format(mapErrorMsg, arguments.Offset, size, pageSize);
 
-                        Logger.PrintWarning(LogClass.ServiceNv, message);
+                        Logger.Warning?.Print(LogClass.ServiceNv, message);
 
                         result = NvInternalResult.InvalidInput;
                     }
                 }
                 else
                 {
-                    arguments.Offset = addressSpaceContext.Vmm.Map(physicalAddress, size);
+                    ulong va = _memoryAllocator.GetFreeAddress(size, out ulong freeAddressStartPosition, pageSize);
+                    if (va != NvMemoryAllocator.PteUnmapped)
+                    {
+                        _memoryAllocator.AllocateRange(va, size, freeAddressStartPosition);
+                    }
+
+                    addressSpaceContext.Gmm.Map(physicalAddress, va, size);
+                    arguments.Offset = va;
                 }
 
-                if (arguments.Offset < 0)
+                if (arguments.Offset == NvMemoryAllocator.PteUnmapped)
                 {
                     arguments.Offset = 0;
 
-                    Logger.PrintWarning(LogClass.ServiceNv, $"Failed to map size 0x{size:x16}!");
+                    Logger.Warning?.Print(LogClass.ServiceNv, $"Failed to map size 0x{size:x16}!");
 
                     result = NvInternalResult.InvalidInput;
                 }
@@ -266,42 +298,46 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
 
         private NvInternalResult GetVaRegions(ref GetVaRegionsArguments arguments)
         {
-            Logger.PrintStub(LogClass.ServiceNv);
+            Logger.Stub?.PrintStub(LogClass.ServiceNv);
 
             return NvInternalResult.Success;
         }
 
         private NvInternalResult InitializeEx(ref InitializeExArguments arguments)
         {
-            Logger.PrintStub(LogClass.ServiceNv);
+            Logger.Stub?.PrintStub(LogClass.ServiceNv);
 
             return NvInternalResult.Success;
         }
 
         private NvInternalResult Remap(Span<RemapArguments> arguments)
         {
+            AddressSpaceContext addressSpaceContext = GetAddressSpaceContext(Context);
+
             for (int index = 0; index < arguments.Length; index++)
             {
-                NvGpuVmm vmm = GetAddressSpaceContext(Owner).Vmm;
+                MemoryManager gmm = GetAddressSpaceContext(Context).Gmm;
 
-                NvMapHandle map = NvMapDeviceFile.GetMapFromHandle(Owner, arguments[index].NvMapHandle, true);
+                ulong mapOffs = (ulong)arguments[index].MapOffset << 16;
+                ulong gpuVa = (ulong)arguments[index].GpuOffset << 16;
+                ulong size = (ulong)arguments[index].Pages << 16;
 
-                if (map == null)
+                if (arguments[index].NvMapHandle == 0)
                 {
-                    Logger.PrintWarning(LogClass.ServiceNv, $"Invalid NvMap handle 0x{arguments[index].NvMapHandle:x8}!");
-
-                    return NvInternalResult.InvalidInput;
+                    gmm.Unmap(gpuVa, size);
                 }
-
-                long result = vmm.Map(map.Address, (long)arguments[index].Offset << 16,
-                                                   (long)arguments[index].Pages << 16);
-
-                if (result < 0)
+                else
                 {
-                    Logger.PrintWarning(LogClass.ServiceNv,
-                        $"Page 0x{arguments[index].Offset:x16} size 0x{arguments[index].Pages:x16} not allocated!");
+                    NvMapHandle map = NvMapDeviceFile.GetMapFromHandle(Owner, arguments[index].NvMapHandle);
 
-                    return NvInternalResult.InvalidInput;
+                    if (map == null)
+                    {
+                        Logger.Warning?.Print(LogClass.ServiceNv, $"Invalid NvMap handle 0x{arguments[index].NvMapHandle:x8}!");
+
+                        return NvInternalResult.InvalidInput;
+                    }
+
+                    gmm.Map(mapOffs + map.Address, gpuVa, size);
                 }
             }
 
@@ -310,9 +346,9 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostAsGpu
 
         public override void Close() { }
 
-        public static AddressSpaceContext GetAddressSpaceContext(KProcess process)
+        public static AddressSpaceContext GetAddressSpaceContext(ServiceCtx context)
         {
-            return _addressSpaceContextRegistry.GetOrAdd(process, (key) => new AddressSpaceContext(process));
+            return _addressSpaceContextRegistry.GetOrAdd(context.Process, (key) => new AddressSpaceContext(context));
         }
     }
 }

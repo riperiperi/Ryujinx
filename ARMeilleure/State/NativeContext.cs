@@ -1,157 +1,189 @@
 using ARMeilleure.IntermediateRepresentation;
 using ARMeilleure.Memory;
 using System;
-using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 
 namespace ARMeilleure.State
 {
     class NativeContext : IDisposable
     {
-        private const int IntSize   = 8;
-        private const int VecSize   = 16;
-        private const int FlagSize  = 4;
-        private const int ExtraSize = 4;
-
-        private const int TotalSize = RegisterConsts.IntRegsCount * IntSize  +
-                                      RegisterConsts.VecRegsCount * VecSize  +
-                                      RegisterConsts.FlagsCount   * FlagSize + ExtraSize;
-
-        public IntPtr BasePtr { get; }
-
-        public NativeContext()
+        private unsafe struct NativeCtxStorage
         {
-            BasePtr = MemoryManagement.Allocate(TotalSize);
+            public fixed ulong X[RegisterConsts.IntRegsCount];
+            public fixed ulong V[RegisterConsts.VecRegsCount * 2];
+            public fixed uint Flags[RegisterConsts.FlagsCount];
+            public fixed uint FpFlags[RegisterConsts.FpFlagsCount];
+            public int Counter;
+            public ulong CallAddress;
+            public ulong ExclusiveAddress;
+            public ulong ExclusiveValueLow;
+            public ulong ExclusiveValueHigh;
         }
 
-        public ulong GetX(int index)
-        {
-            if ((uint)index >= RegisterConsts.IntRegsCount)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
+        private static NativeCtxStorage _dummyStorage = new NativeCtxStorage();
 
-            return (ulong)Marshal.ReadInt64(BasePtr, index * IntSize);
+        private readonly IJitMemoryBlock _block;
+
+        public IntPtr BasePtr => _block.Pointer;
+
+        public NativeContext(IJitMemoryAllocator allocator)
+        {
+            _block = allocator.Allocate((ulong)Unsafe.SizeOf<NativeCtxStorage>());
+
+            GetStorage().ExclusiveAddress = ulong.MaxValue;
         }
 
-        public void SetX(int index, ulong value)
-        {
-            if ((uint)index >= RegisterConsts.IntRegsCount)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            Marshal.WriteInt64(BasePtr, index * IntSize, (long)value);
-        }
-
-        public V128 GetV(int index)
+        public unsafe ulong GetX(int index)
         {
             if ((uint)index >= RegisterConsts.IntRegsCount)
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            int offset = RegisterConsts.IntRegsCount * IntSize + index * VecSize;
-
-            return new V128(
-                Marshal.ReadInt64(BasePtr, offset + 0),
-                Marshal.ReadInt64(BasePtr, offset + 8));
+            return GetStorage().X[index];
         }
 
-        public void SetV(int index, V128 value)
+        public unsafe void SetX(int index, ulong value)
         {
             if ((uint)index >= RegisterConsts.IntRegsCount)
             {
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            int offset = RegisterConsts.IntRegsCount * IntSize + index * VecSize;
-
-            Marshal.WriteInt64(BasePtr, offset + 0, value.GetInt64(0));
-            Marshal.WriteInt64(BasePtr, offset + 8, value.GetInt64(1));
+            GetStorage().X[index] = value;
         }
 
-        public bool GetPstateFlag(PState flag)
+        public unsafe V128 GetV(int index)
+        {
+            if ((uint)index >= RegisterConsts.VecRegsCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return new V128(GetStorage().V[index * 2 + 0], GetStorage().V[index * 2 + 1]);
+        }
+
+        public unsafe void SetV(int index, V128 value)
+        {
+            if ((uint)index >= RegisterConsts.VecRegsCount)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            GetStorage().V[index * 2 + 0] = value.Extract<ulong>(0);
+            GetStorage().V[index * 2 + 1] = value.Extract<ulong>(1);
+        }
+
+        public unsafe bool GetPstateFlag(PState flag)
         {
             if ((uint)flag >= RegisterConsts.FlagsCount)
             {
                 throw new ArgumentException($"Invalid flag \"{flag}\" specified.");
             }
 
-            int offset =
-                RegisterConsts.IntRegsCount * IntSize +
-                RegisterConsts.VecRegsCount * VecSize + (int)flag * FlagSize;
-
-            int value = Marshal.ReadInt32(BasePtr, offset);
-
-            return value != 0;
+            return GetStorage().Flags[(int)flag] != 0;
         }
 
-        public void SetPstateFlag(PState flag, bool value)
+        public unsafe void SetPstateFlag(PState flag, bool value)
         {
             if ((uint)flag >= RegisterConsts.FlagsCount)
             {
                 throw new ArgumentException($"Invalid flag \"{flag}\" specified.");
             }
 
-            int offset =
-                RegisterConsts.IntRegsCount * IntSize +
-                RegisterConsts.VecRegsCount * VecSize + (int)flag * FlagSize;
-
-            Marshal.WriteInt32(BasePtr, offset, value ? 1 : 0);
+            GetStorage().Flags[(int)flag] = value ? 1u : 0u;
         }
 
-        public int GetCounter()
+        public unsafe bool GetFPStateFlag(FPState flag)
         {
-            return Marshal.ReadInt32(BasePtr, GetCounterOffset());
+            if ((uint)flag >= RegisterConsts.FpFlagsCount)
+            {
+                throw new ArgumentException($"Invalid flag \"{flag}\" specified.");
+            }
+
+            return GetStorage().FpFlags[(int)flag] != 0;
         }
 
-        public void SetCounter(int value)
+        public unsafe void SetFPStateFlag(FPState flag, bool value)
         {
-            Marshal.WriteInt32(BasePtr, GetCounterOffset(), value);
+            if ((uint)flag >= RegisterConsts.FpFlagsCount)
+            {
+                throw new ArgumentException($"Invalid flag \"{flag}\" specified.");
+            }
+
+            GetStorage().FpFlags[(int)flag] = value ? 1u : 0u;
         }
 
-        public static int GetRegisterOffset(Register reg)
-        {
-            int offset, size;
+        public int GetCounter() => GetStorage().Counter;
+        public void SetCounter(int value) => GetStorage().Counter = value;
 
+        public unsafe static int GetRegisterOffset(Register reg)
+        {
             if (reg.Type == RegisterType.Integer)
             {
-                offset = reg.Index * IntSize;
+                if ((uint)reg.Index >= RegisterConsts.IntRegsCount)
+                {
+                    throw new ArgumentException("Invalid register.");
+                }
 
-                size = IntSize;
+                return StorageOffset(ref _dummyStorage, ref _dummyStorage.X[reg.Index]);
             }
             else if (reg.Type == RegisterType.Vector)
             {
-                offset = RegisterConsts.IntRegsCount * IntSize + reg.Index * VecSize;
+                if ((uint)reg.Index >= RegisterConsts.VecRegsCount)
+                {
+                    throw new ArgumentException("Invalid register.");
+                }
 
-                size = VecSize;
+                return StorageOffset(ref _dummyStorage, ref _dummyStorage.V[reg.Index * 2]);
             }
-            else /* if (reg.Type == RegisterType.Flag) */
+            else if (reg.Type == RegisterType.Flag)
             {
-                offset = RegisterConsts.IntRegsCount * IntSize +
-                         RegisterConsts.VecRegsCount * VecSize + reg.Index * FlagSize;
+                if ((uint)reg.Index >= RegisterConsts.FlagsCount)
+                {
+                    throw new ArgumentException("Invalid register.");
+                }
 
-                size = FlagSize;
+                return StorageOffset(ref _dummyStorage, ref _dummyStorage.Flags[reg.Index]);
             }
-
-            if ((uint)(offset + size) > (uint)TotalSize)
+            else /* if (reg.Type == RegisterType.FpFlag) */
             {
-                throw new ArgumentException("Invalid register.");
-            }
+                if ((uint)reg.Index >= RegisterConsts.FpFlagsCount)
+                {
+                    throw new ArgumentException("Invalid register.");
+                }
 
-            return offset;
+                return StorageOffset(ref _dummyStorage, ref _dummyStorage.FpFlags[reg.Index]);
+            }
         }
 
         public static int GetCounterOffset()
         {
-            return RegisterConsts.IntRegsCount * IntSize +
-                   RegisterConsts.VecRegsCount * VecSize +
-                   RegisterConsts.FlagsCount   * FlagSize;
+            return StorageOffset(ref _dummyStorage, ref _dummyStorage.Counter);
         }
 
-        public void Dispose()
+        public static int GetCallAddressOffset()
         {
-            MemoryManagement.Free(BasePtr);
+            return StorageOffset(ref _dummyStorage, ref _dummyStorage.CallAddress);
         }
+
+        public static int GetExclusiveAddressOffset()
+        {
+            return StorageOffset(ref _dummyStorage, ref _dummyStorage.ExclusiveAddress);
+        }
+
+        public static int GetExclusiveValueOffset()
+        {
+            return StorageOffset(ref _dummyStorage, ref _dummyStorage.ExclusiveValueLow);
+        }
+
+        private static int StorageOffset<T>(ref NativeCtxStorage storage, ref T target)
+        {
+            return (int)Unsafe.ByteOffset(ref Unsafe.As<NativeCtxStorage, T>(ref storage), ref target);
+        }
+
+        private unsafe ref NativeCtxStorage GetStorage() => ref Unsafe.AsRef<NativeCtxStorage>((void*)_block.Pointer);
+
+        public void Dispose() => _block.Dispose();
     }
 }

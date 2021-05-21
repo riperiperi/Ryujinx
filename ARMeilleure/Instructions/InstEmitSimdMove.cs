@@ -1,8 +1,8 @@
 using ARMeilleure.Decoders;
 using ARMeilleure.IntermediateRepresentation;
 using ARMeilleure.Translation;
-using System;
 using System.Collections.Generic;
+using System.Reflection;
 
 using static ARMeilleure.Instructions.InstEmitHelper;
 using static ARMeilleure.Instructions.InstEmitSimdHelper;
@@ -13,20 +13,6 @@ namespace ARMeilleure.Instructions
     static partial class InstEmit
     {
 #region "Masks"
-        private static readonly long[] _masksE0_TrnUzpXtn = new long[]
-        {
-            14L << 56 | 12L << 48 | 10L << 40 | 08L << 32 | 06L << 24 | 04L << 16 | 02L << 8 | 00L << 0,
-            13L << 56 | 12L << 48 | 09L << 40 | 08L << 32 | 05L << 24 | 04L << 16 | 01L << 8 | 00L << 0,
-            11L << 56 | 10L << 48 | 09L << 40 | 08L << 32 | 03L << 24 | 02L << 16 | 01L << 8 | 00L << 0
-        };
-
-        private static readonly long[] _masksE1_TrnUzp = new long[]
-        {
-            15L << 56 | 13L << 48 | 11L << 40 | 09L << 32 | 07L << 24 | 05L << 16 | 03L << 8 | 01L << 0,
-            15L << 56 | 14L << 48 | 11L << 40 | 10L << 32 | 07L << 24 | 06L << 16 | 03L << 8 | 02L << 0,
-            15L << 56 | 14L << 48 | 13L << 40 | 12L << 32 | 07L << 24 | 06L << 16 | 05L << 8 | 04L << 0
-        };
-
         private static readonly long[] _masksE0_Uzp = new long[]
         {
             13L << 56 | 09L << 48 | 05L << 40 | 01L << 32 | 12L << 24 | 08L << 16 | 04L << 8 | 00L << 0,
@@ -298,13 +284,26 @@ namespace ARMeilleure.Instructions
         {
             OpCodeSimdFmov op = (OpCodeSimdFmov)context.CurrOp;
 
-            if (op.Size == 0)
+            if (Optimizations.UseSse2)
             {
-                context.Copy(GetVec(op.Rd), X86GetScalar(context, (int)op.Immediate));
+                if (op.Size == 0)
+                {
+                    context.Copy(GetVec(op.Rd), X86GetScalar(context, (int)op.Immediate));
+                }
+                else
+                {
+                    context.Copy(GetVec(op.Rd), X86GetScalar(context, op.Immediate));
+                }
             }
             else
             {
-                context.Copy(GetVec(op.Rd), X86GetScalar(context, op.Immediate));
+                Operand e = Const(op.Immediate);
+
+                Operand res = context.VectorZero();
+
+                res = EmitVectorInsert(context, res, e, 0, op.Size + 2);
+
+                context.Copy(GetVec(op.Rd), res);
             }
         }
 
@@ -364,7 +363,7 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.UseSse2)
             {
-                EmitSse2MoviMvni(context, not: false);
+                EmitSse2VectorMoviMvniOp(context, not: false);
             }
             else
             {
@@ -376,7 +375,7 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.UseSse2)
             {
-                EmitSse2MoviMvni(context, not: true);
+                EmitSse2VectorMoviMvniOp(context, not: true);
             }
             else
             {
@@ -447,7 +446,7 @@ namespace ARMeilleure.Instructions
 
                 Operand res = context.VectorZeroUpper64(d);
 
-                Operand mask = X86GetAllElements(context, _masksE0_TrnUzpXtn[op.Size]);
+                Operand mask = X86GetAllElements(context, EvenMasks[op.Size]);
 
                 Operand res2 = context.AddIntrinsic(Intrinsic.X86Pshufb, GetVec(op.Rn), mask);
 
@@ -490,7 +489,7 @@ namespace ARMeilleure.Instructions
             EmitVectorZip(context, part: 1);
         }
 
-        private static void EmitSse2MoviMvni(ArmEmitterContext context, bool not)
+        private static void EmitSse2VectorMoviMvniOp(ArmEmitterContext context, bool not)
         {
             OpCodeSimdImm op = (OpCodeSimdImm)context.CurrOp;
 
@@ -607,32 +606,30 @@ namespace ARMeilleure.Instructions
                     args.Add(GetVec((op.Rn + index) & 0x1F));
                 }
 
-                Delegate dlg = null;
+                MethodInfo info = null;
 
-                switch (op.Size)
+                if (isTbl)
                 {
-                    case 1: dlg = isTbl
-                        ? (Delegate)new _V128_V128_S32_V128     (SoftFallback.Tbl1)
-                        : (Delegate)new _V128_V128_V128_S32_V128(SoftFallback.Tbx1);
-                        break;
-
-                    case 2: dlg = isTbl
-                        ? (Delegate)new _V128_V128_S32_V128_V128     (SoftFallback.Tbl2)
-                        : (Delegate)new _V128_V128_V128_S32_V128_V128(SoftFallback.Tbx2);
-                        break;
-
-                    case 3: dlg = isTbl
-                        ? (Delegate)new _V128_V128_S32_V128_V128_V128     (SoftFallback.Tbl3)
-                        : (Delegate)new _V128_V128_V128_S32_V128_V128_V128(SoftFallback.Tbx3);
-                        break;
-
-                    case 4: dlg = isTbl
-                        ? (Delegate)new _V128_V128_S32_V128_V128_V128_V128     (SoftFallback.Tbl4)
-                        : (Delegate)new _V128_V128_V128_S32_V128_V128_V128_V128(SoftFallback.Tbx4);
-                        break;
+                    switch (op.Size)
+                    {
+                        case 1: info = typeof(SoftFallback).GetMethod(nameof(SoftFallback.Tbl1)); break;
+                        case 2: info = typeof(SoftFallback).GetMethod(nameof(SoftFallback.Tbl2)); break;
+                        case 3: info = typeof(SoftFallback).GetMethod(nameof(SoftFallback.Tbl3)); break;
+                        case 4: info = typeof(SoftFallback).GetMethod(nameof(SoftFallback.Tbl4)); break;
+                    }
+                }
+                else
+                {
+                    switch (op.Size)
+                    {
+                        case 1: info = typeof(SoftFallback).GetMethod(nameof(SoftFallback.Tbx1)); break;
+                        case 2: info = typeof(SoftFallback).GetMethod(nameof(SoftFallback.Tbx2)); break;
+                        case 3: info = typeof(SoftFallback).GetMethod(nameof(SoftFallback.Tbx3)); break;
+                        case 4: info = typeof(SoftFallback).GetMethod(nameof(SoftFallback.Tbx4)); break;
+                    }
                 }
 
-                context.Copy(d, context.Call(dlg, args.ToArray()));
+                context.Copy(d, context.Call(info, args.ToArray()));
             }
         }
 
@@ -646,8 +643,8 @@ namespace ARMeilleure.Instructions
 
                 if (op.Size < 3)
                 {
-                    long maskE0 = _masksE0_TrnUzpXtn[op.Size];
-                    long maskE1 = _masksE1_TrnUzp   [op.Size];
+                    long maskE0 = EvenMasks[op.Size];
+                    long maskE1 = OddMasks [op.Size];
 
                     mask = X86GetScalar(context, maskE0);
 
@@ -714,8 +711,8 @@ namespace ARMeilleure.Instructions
 
                     if (op.Size < 3)
                     {
-                        long maskE0 = _masksE0_TrnUzpXtn[op.Size];
-                        long maskE1 = _masksE1_TrnUzp   [op.Size];
+                        long maskE0 = EvenMasks[op.Size];
+                        long maskE1 = OddMasks [op.Size];
 
                         mask = X86GetScalar(context, maskE0);
 

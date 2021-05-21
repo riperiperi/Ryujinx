@@ -1,8 +1,9 @@
 using ARMeilleure.Decoders;
 using ARMeilleure.IntermediateRepresentation;
-using ARMeilleure.Memory;
 using ARMeilleure.Translation;
+using ARMeilleure.Translation.PTC;
 using System;
+using System.Reflection;
 
 using static ARMeilleure.Instructions.InstEmitHelper;
 using static ARMeilleure.IntermediateRepresentation.OperandHelper;
@@ -11,6 +12,9 @@ namespace ARMeilleure.Instructions
 {
     static class InstEmitMemoryHelper
     {
+        private const int PageBits = 12;
+        private const int PageMask = (1 << PageBits) - 1;
+
         private enum Extension
         {
             Zx,
@@ -51,9 +55,9 @@ namespace ARMeilleure.Instructions
                 EmitReadInt(context, address, rt, size);
             }
 
-            if (!isSimd)
+            if (!isSimd && !(context.CurrOp is OpCode32 && rt == State.RegisterAlias.Aarch32Pc))
             {
-                Operand value = GetIntOrZR(context, rt);
+                Operand value = GetInt(context, rt);
 
                 if (ext == Extension.Sx32 || ext == Extension.Sx64)
                 {
@@ -67,7 +71,7 @@ namespace ARMeilleure.Instructions
                     }
                 }
 
-                SetIntOrZR(context, rt, value);
+                SetInt(context, rt, value);
             }
         }
 
@@ -120,48 +124,49 @@ namespace ARMeilleure.Instructions
 
         private static void EmitReadInt(ArmEmitterContext context, Operand address, int rt, int size)
         {
-            Operand isUnalignedAddr = EmitAddressCheck(context, address, size);
-
-            Operand lblFastPath = Label();
             Operand lblSlowPath = Label();
             Operand lblEnd      = Label();
 
-            context.BranchIfFalse(lblFastPath, isUnalignedAddr);
-
-            context.MarkLabel(lblSlowPath);
-
-            EmitReadIntFallback(context, address, rt, size);
-
-            context.Branch(lblEnd);
-
-            context.MarkLabel(lblFastPath);
-
-            Operand physAddr = EmitPtPointerLoad(context, address, lblSlowPath);
+            Operand physAddr = EmitPtPointerLoad(context, address, lblSlowPath, write: false, size);
 
             Operand value = null;
 
             switch (size)
             {
-                case 0:
-                    value = context.Load8(physAddr);
-                    break;
-
-                case 1:
-                    value = context.Load16(physAddr);
-                    break;
-
-                case 2:
-                    value = context.Load(OperandType.I32, physAddr);
-                    break;
-
-                case 3:
-                    value = context.Load(OperandType.I64, physAddr);
-                    break;
+                case 0: value = context.Load8 (physAddr);                  break;
+                case 1: value = context.Load16(physAddr);                  break;
+                case 2: value = context.Load  (OperandType.I32, physAddr); break;
+                case 3: value = context.Load  (OperandType.I64, physAddr); break;
             }
 
             SetInt(context, rt, value);
 
+            context.Branch(lblEnd);
+
+            context.MarkLabel(lblSlowPath, BasicBlockFrequency.Cold);
+
+            EmitReadIntFallback(context, address, rt, size);
+
             context.MarkLabel(lblEnd);
+        }
+
+        public static Operand EmitReadIntAligned(ArmEmitterContext context, Operand address, int size)
+        {
+            if ((uint)size > 4)
+            {
+                throw new ArgumentOutOfRangeException(nameof(size));
+            }
+
+            Operand physAddr = EmitPtPointerLoad(context, address, null, write: false, size);
+
+            return size switch
+            {
+                0 => context.Load8(physAddr),
+                1 => context.Load16(physAddr),
+                2 => context.Load(OperandType.I32, physAddr),
+                3 => context.Load(OperandType.I64, physAddr),
+                _ => context.Load(OperandType.V128, physAddr)
+            };
         }
 
         private static void EmitReadVector(
@@ -172,50 +177,29 @@ namespace ARMeilleure.Instructions
             int elem,
             int size)
         {
-            Operand isUnalignedAddr = EmitAddressCheck(context, address, size);
-
-            Operand lblFastPath = Label();
             Operand lblSlowPath = Label();
             Operand lblEnd      = Label();
 
-            context.BranchIfFalse(lblFastPath, isUnalignedAddr);
-
-            context.MarkLabel(lblSlowPath);
-
-            EmitReadVectorFallback(context, address, vector, rt, elem, size);
-
-            context.Branch(lblEnd);
-
-            context.MarkLabel(lblFastPath);
-
-            Operand physAddr = EmitPtPointerLoad(context, address, lblSlowPath);
+            Operand physAddr = EmitPtPointerLoad(context, address, lblSlowPath, write: false, size);
 
             Operand value = null;
 
             switch (size)
             {
-                case 0:
-                    value = context.VectorInsert8(vector, context.Load8(physAddr), elem);
-                    break;
-
-                case 1:
-                    value = context.VectorInsert16(vector, context.Load16(physAddr), elem);
-                    break;
-
-                case 2:
-                    value = context.VectorInsert(vector, context.Load(OperandType.I32, physAddr), elem);
-                    break;
-
-                case 3:
-                    value = context.VectorInsert(vector, context.Load(OperandType.I64, physAddr), elem);
-                    break;
-
-                case 4:
-                    value = context.Load(OperandType.V128, physAddr);
-                    break;
+                case 0: value = context.VectorInsert8 (vector, context.Load8(physAddr), elem);                 break;
+                case 1: value = context.VectorInsert16(vector, context.Load16(physAddr), elem);                break;
+                case 2: value = context.VectorInsert  (vector, context.Load(OperandType.I32, physAddr), elem); break;
+                case 3: value = context.VectorInsert  (vector, context.Load(OperandType.I64, physAddr), elem); break;
+                case 4: value = context.Load          (OperandType.V128, physAddr);                            break;
             }
 
             context.Copy(GetVec(rt), value);
+
+            context.Branch(lblEnd);
+
+            context.MarkLabel(lblSlowPath, BasicBlockFrequency.Cold);
+
+            EmitReadVectorFallback(context, address, vector, rt, elem, size);
 
             context.MarkLabel(lblEnd);
         }
@@ -227,23 +211,10 @@ namespace ARMeilleure.Instructions
 
         private static void EmitWriteInt(ArmEmitterContext context, Operand address, int rt, int size)
         {
-            Operand isUnalignedAddr = EmitAddressCheck(context, address, size);
-
-            Operand lblFastPath = Label();
             Operand lblSlowPath = Label();
             Operand lblEnd      = Label();
 
-            context.BranchIfFalse(lblFastPath, isUnalignedAddr);
-
-            context.MarkLabel(lblSlowPath);
-
-            EmitWriteIntFallback(context, address, rt, size);
-
-            context.Branch(lblEnd);
-
-            context.MarkLabel(lblFastPath);
-
-            Operand physAddr = EmitPtPointerLoad(context, address, lblSlowPath);
+            Operand physAddr = EmitPtPointerLoad(context, address, lblSlowPath, write: true, size);
 
             Operand value = GetInt(context, rt);
 
@@ -260,7 +231,41 @@ namespace ARMeilleure.Instructions
                 case 3: context.Store  (physAddr, value); break;
             }
 
+            context.Branch(lblEnd);
+
+            context.MarkLabel(lblSlowPath, BasicBlockFrequency.Cold);
+
+            EmitWriteIntFallback(context, address, rt, size);
+
             context.MarkLabel(lblEnd);
+        }
+
+        public static void EmitWriteIntAligned(ArmEmitterContext context, Operand address, Operand value, int size)
+        {
+            if ((uint)size > 4)
+            {
+                throw new ArgumentOutOfRangeException(nameof(size));
+            }
+
+            Operand physAddr = EmitPtPointerLoad(context, address, null, write: true, size);
+
+            if (size < 3 && value.Type == OperandType.I64)
+            {
+                value = context.ConvertI64ToI32(value);
+            }
+
+            if (size == 0)
+            {
+                context.Store8(physAddr, value);
+            }
+            else if (size == 1)
+            {
+                context.Store16(physAddr, value);
+            }
+            else
+            {
+                context.Store(physAddr, value);
+            }
         }
 
         private static void EmitWriteVector(
@@ -270,123 +275,124 @@ namespace ARMeilleure.Instructions
             int elem,
             int size)
         {
-            Operand isUnalignedAddr = EmitAddressCheck(context, address, size);
-
-            Operand lblFastPath = Label();
             Operand lblSlowPath = Label();
             Operand lblEnd      = Label();
 
-            context.BranchIfFalse(lblFastPath, isUnalignedAddr);
-
-            context.MarkLabel(lblSlowPath);
-
-            EmitWriteVectorFallback(context, address, rt, elem, size);
-
-            context.Branch(lblEnd);
-
-            context.MarkLabel(lblFastPath);
-
-            Operand physAddr = EmitPtPointerLoad(context, address, lblSlowPath);
+            Operand physAddr = EmitPtPointerLoad(context, address, lblSlowPath, write: true, size);
 
             Operand value = GetVec(rt);
 
             switch (size)
             {
-                case 0:
-                    context.Store8(physAddr, context.VectorExtract8(value, elem));
-                    break;
-
-                case 1:
-                    context.Store16(physAddr, context.VectorExtract16(value, elem));
-                    break;
-
-                case 2:
-                    context.Store(physAddr, context.VectorExtract(OperandType.FP32, value, elem));
-                    break;
-
-                case 3:
-                    context.Store(physAddr, context.VectorExtract(OperandType.FP64, value, elem));
-                    break;
-
-                case 4:
-                    context.Store(physAddr, value);
-                    break;
+                case 0: context.Store8 (physAddr, context.VectorExtract8(value, elem));                 break;
+                case 1: context.Store16(physAddr, context.VectorExtract16(value, elem));                break;
+                case 2: context.Store  (physAddr, context.VectorExtract(OperandType.I32, value, elem)); break;
+                case 3: context.Store  (physAddr, context.VectorExtract(OperandType.I64, value, elem)); break;
+                case 4: context.Store  (physAddr, value);                                               break;
             }
+
+            context.Branch(lblEnd);
+
+            context.MarkLabel(lblSlowPath, BasicBlockFrequency.Cold);
+
+            EmitWriteVectorFallback(context, address, rt, elem, size);
 
             context.MarkLabel(lblEnd);
         }
 
-        private static Operand EmitAddressCheck(ArmEmitterContext context, Operand address, int size)
+        public static Operand EmitPtPointerLoad(ArmEmitterContext context, Operand address, Operand lblSlowPath, bool write, int size)
         {
-            long addressCheckMask = ~(context.Memory.AddressSpaceSize - 1);
+            int ptLevelBits = context.Memory.AddressSpaceBits - PageBits;
+            int ptLevelSize = 1 << ptLevelBits;
+            int ptLevelMask = ptLevelSize - 1;
 
-            addressCheckMask |= (1u << size) - 1;
+            Operand addrRotated = size != 0 ? context.RotateRight(address, Const(size)) : address;
+            Operand addrShifted = context.ShiftRightUI(addrRotated, Const(PageBits - size));
 
-            return context.BitwiseAnd(address, Const(address.Type, addressCheckMask));
-        }
+            Operand pte = Ptc.State == PtcState.Disabled
+                ? Const(context.Memory.PageTablePointer.ToInt64())
+                : Const(context.Memory.PageTablePointer.ToInt64(), true, Ptc.PageTablePointerIndex);
 
-        private static Operand EmitPtPointerLoad(ArmEmitterContext context, Operand address, Operand lblFallbackPath)
-        {
-            Operand pte = Const(context.Memory.PageTable.ToInt64());
+            Operand pteOffset = context.BitwiseAnd(addrShifted, Const(addrShifted.Type, ptLevelMask));
 
-            int bit = MemoryManager.PageBits;
-
-            do
+            if (pteOffset.Type == OperandType.I32)
             {
-                Operand addrPart = context.ShiftRightUI(address, Const(bit));
-
-                bit += context.Memory.PtLevelBits;
-
-                if (bit < context.Memory.AddressSpaceBits)
-                {
-                    addrPart = context.BitwiseAnd(addrPart, Const(addrPart.Type, context.Memory.PtLevelMask));
-                }
-
-                Operand pteOffset = context.ShiftLeft(addrPart, Const(3));
-
-                if (pteOffset.Type == OperandType.I32)
-                {
-                    pteOffset = context.ZeroExtend32(OperandType.I64, pteOffset);
-                }
-
-                Operand pteAddress = context.Add(pte, pteOffset);
-
-                pte = context.Load(OperandType.I64, pteAddress);
-            }
-            while (bit < context.Memory.AddressSpaceBits);
-
-            if (!context.Memory.HasWriteWatchSupport)
-            {
-                Operand hasFlagSet = context.BitwiseAnd(pte, Const((long)MemoryManager.PteFlagsMask));
-
-                context.BranchIfTrue(lblFallbackPath, hasFlagSet);
+                pteOffset = context.ZeroExtend32(OperandType.I64, pteOffset);
             }
 
-            Operand pageOffset = context.BitwiseAnd(address, Const(address.Type, MemoryManager.PageMask));
+            pte = context.Load(OperandType.I64, context.Add(pte, context.ShiftLeft(pteOffset, Const(3))));
+
+            if (addrShifted.Type == OperandType.I32)
+            {
+                addrShifted = context.ZeroExtend32(OperandType.I64, addrShifted);
+            }
+
+            // If the VA is out of range, or not aligned to the access size, force PTE to 0 by masking it.
+            pte = context.BitwiseAnd(pte, context.ShiftRightSI(context.Add(addrShifted, Const(-(long)ptLevelSize)), Const(63)));
+
+            if (lblSlowPath != null)
+            {
+                if (write)
+                {
+                    context.BranchIf(lblSlowPath, pte, Const(0L), Comparison.LessOrEqual);
+                    pte = context.BitwiseAnd(pte, Const(0xffffffffffffUL)); // Ignore any software protection bits. (they are still used by C# memory access)
+                }
+                else
+                {
+                    pte = context.ShiftLeft(pte, Const(1));
+                    context.BranchIf(lblSlowPath, pte, Const(0L), Comparison.LessOrEqual);
+                    pte = context.ShiftRightUI(pte, Const(1));
+                }
+            }
+            else
+            {
+                // When no label is provided to jump to a slow path if the address is invalid,
+                // we do the validation ourselves, and throw if needed.
+
+                Operand lblNotWatched = Label();
+
+                // Is the page currently being tracked for read/write? If so we need to call SignalMemoryTracking.
+                context.BranchIf(lblNotWatched, pte, Const(0L), Comparison.GreaterOrEqual, BasicBlockFrequency.Cold);
+
+                // Signal memory tracking. Size here doesn't matter as address is assumed to be size aligned here.
+                context.Call(typeof(NativeInterface).GetMethod(nameof(NativeInterface.SignalMemoryTracking)), address, Const(1UL), Const(write ? 1 : 0));
+                context.MarkLabel(lblNotWatched);
+
+                pte = context.BitwiseAnd(pte, Const(0xffffffffffffUL)); // Ignore any software protection bits. (they are still used by C# memory access)
+
+                Operand lblNonNull = Label();
+
+                // Skip exception if the PTE address is non-null (not zero).
+                context.BranchIfTrue(lblNonNull, pte, BasicBlockFrequency.Cold);
+
+                // The call is not expected to return (it should throw).
+                context.Call(typeof(NativeInterface).GetMethod(nameof(NativeInterface.ThrowInvalidMemoryAccess)), address);
+                context.MarkLabel(lblNonNull);
+            }
+
+            Operand pageOffset = context.BitwiseAnd(address, Const(address.Type, PageMask));
 
             if (pageOffset.Type == OperandType.I32)
             {
                 pageOffset = context.ZeroExtend32(OperandType.I64, pageOffset);
             }
 
-            Operand physAddr = context.Add(pte, pageOffset);
-
-            return physAddr;
+            return context.Add(pte, pageOffset);
         }
 
         private static void EmitReadIntFallback(ArmEmitterContext context, Operand address, int rt, int size)
         {
-            Delegate fallbackMethodDlg = null;
+            MethodInfo info = null;
 
             switch (size)
             {
-                case 0: fallbackMethodDlg = new _U8_U64 (NativeInterface.ReadByte);   break;
-                case 1: fallbackMethodDlg = new _U16_U64(NativeInterface.ReadUInt16); break;
-                case 2: fallbackMethodDlg = new _U32_U64(NativeInterface.ReadUInt32); break;
-                case 3: fallbackMethodDlg = new _U64_U64(NativeInterface.ReadUInt64); break;
+                case 0: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadByte));   break;
+                case 1: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadUInt16)); break;
+                case 2: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadUInt32)); break;
+                case 3: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadUInt64)); break;
             }
 
-            SetInt(context, rt, context.Call(fallbackMethodDlg, address));
+            SetInt(context, rt, context.Call(info, address));
         }
 
         private static void EmitReadVectorFallback(
@@ -397,18 +403,18 @@ namespace ARMeilleure.Instructions
             int elem,
             int size)
         {
-            Delegate fallbackMethodDlg = null;
+            MethodInfo info = null;
 
             switch (size)
             {
-                case 0: fallbackMethodDlg = new _U8_U64  (NativeInterface.ReadByte);      break;
-                case 1: fallbackMethodDlg = new _U16_U64 (NativeInterface.ReadUInt16);    break;
-                case 2: fallbackMethodDlg = new _U32_U64 (NativeInterface.ReadUInt32);    break;
-                case 3: fallbackMethodDlg = new _U64_U64 (NativeInterface.ReadUInt64);    break;
-                case 4: fallbackMethodDlg = new _V128_U64(NativeInterface.ReadVector128); break;
+                case 0: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadByte));      break;
+                case 1: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadUInt16));    break;
+                case 2: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadUInt32));    break;
+                case 3: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadUInt64));    break;
+                case 4: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.ReadVector128)); break;
             }
 
-            Operand value = context.Call(fallbackMethodDlg, address);
+            Operand value = context.Call(info, address);
 
             switch (size)
             {
@@ -423,14 +429,14 @@ namespace ARMeilleure.Instructions
 
         private static void EmitWriteIntFallback(ArmEmitterContext context, Operand address, int rt, int size)
         {
-            Delegate fallbackMethodDlg = null;
+            MethodInfo info = null;
 
             switch (size)
             {
-                case 0: fallbackMethodDlg = new _Void_U64_U8 (NativeInterface.WriteByte);   break;
-                case 1: fallbackMethodDlg = new _Void_U64_U16(NativeInterface.WriteUInt16); break;
-                case 2: fallbackMethodDlg = new _Void_U64_U32(NativeInterface.WriteUInt32); break;
-                case 3: fallbackMethodDlg = new _Void_U64_U64(NativeInterface.WriteUInt64); break;
+                case 0: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteByte));   break;
+                case 1: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteUInt16)); break;
+                case 2: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteUInt32)); break;
+                case 3: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteUInt64)); break;
             }
 
             Operand value = GetInt(context, rt);
@@ -440,7 +446,7 @@ namespace ARMeilleure.Instructions
                 value = context.ConvertI64ToI32(value);
             }
 
-            context.Call(fallbackMethodDlg, address, value);
+            context.Call(info, address, value);
         }
 
         private static void EmitWriteVectorFallback(
@@ -450,15 +456,15 @@ namespace ARMeilleure.Instructions
             int elem,
             int size)
         {
-            Delegate fallbackMethodDlg = null;
+            MethodInfo info = null;
 
             switch (size)
             {
-                case 0: fallbackMethodDlg = new _Void_U64_U8  (NativeInterface.WriteByte);      break;
-                case 1: fallbackMethodDlg = new _Void_U64_U16 (NativeInterface.WriteUInt16);    break;
-                case 2: fallbackMethodDlg = new _Void_U64_U32 (NativeInterface.WriteUInt32);    break;
-                case 3: fallbackMethodDlg = new _Void_U64_U64 (NativeInterface.WriteUInt64);    break;
-                case 4: fallbackMethodDlg = new _Void_U64_V128(NativeInterface.WriteVector128); break;
+                case 0: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteByte));      break;
+                case 1: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteUInt16));    break;
+                case 2: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteUInt32));    break;
+                case 3: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteUInt64));    break;
+                case 4: info = typeof(NativeInterface).GetMethod(nameof(NativeInterface.WriteVector128)); break;
             }
 
             Operand value = null;
@@ -467,21 +473,10 @@ namespace ARMeilleure.Instructions
             {
                 switch (size)
                 {
-                    case 0:
-                        value = context.VectorExtract8(GetVec(rt), elem);
-                        break;
-
-                    case 1:
-                        value = context.VectorExtract16(GetVec(rt), elem);
-                        break;
-
-                    case 2:
-                        value = context.VectorExtract(OperandType.I32, GetVec(rt), elem);
-                        break;
-
-                    case 3:
-                        value = context.VectorExtract(OperandType.I64, GetVec(rt), elem);
-                        break;
+                    case 0: value = context.VectorExtract8 (GetVec(rt), elem);                  break;
+                    case 1: value = context.VectorExtract16(GetVec(rt), elem);                  break;
+                    case 2: value = context.VectorExtract  (OperandType.I32, GetVec(rt), elem); break;
+                    case 3: value = context.VectorExtract  (OperandType.I64, GetVec(rt), elem); break;
                 }
             }
             else
@@ -489,7 +484,7 @@ namespace ARMeilleure.Instructions
                 value = GetVec(rt);
             }
 
-            context.Call(fallbackMethodDlg, address, value);
+            context.Call(info, address, value);
         }
 
         private static Operand GetInt(ArmEmitterContext context, int rt)
@@ -507,6 +502,69 @@ namespace ARMeilleure.Instructions
             {
                 SetIntOrZR(context, rt, value);
             }
+        }
+
+        // ARM32 helpers.
+        public static Operand GetMemM(ArmEmitterContext context, bool setCarry = true)
+        {
+            switch (context.CurrOp)
+            {
+                case OpCode32MemRsImm op: return GetMShiftedByImmediate(context, op, setCarry);
+
+                case OpCode32MemReg op: return GetIntA32(context, op.Rm);
+
+                case OpCode32Mem op: return Const(op.Immediate);
+
+                case OpCode32SimdMemImm op: return Const(op.Immediate);
+
+                default: throw InvalidOpCodeType(context.CurrOp);
+            }
+        }
+
+        private static Exception InvalidOpCodeType(OpCode opCode)
+        {
+            return new InvalidOperationException($"Invalid OpCode type \"{opCode?.GetType().Name ?? "null"}\".");
+        }
+
+        public static Operand GetMShiftedByImmediate(ArmEmitterContext context, OpCode32MemRsImm op, bool setCarry)
+        {
+            Operand m = GetIntA32(context, op.Rm);
+
+            int shift = op.Immediate;
+
+            if (shift == 0)
+            {
+                switch (op.ShiftType)
+                {
+                    case ShiftType.Lsr: shift = 32; break;
+                    case ShiftType.Asr: shift = 32; break;
+                    case ShiftType.Ror: shift = 1; break;
+                }
+            }
+
+            if (shift != 0)
+            {
+                setCarry &= false;
+
+                switch (op.ShiftType)
+                {
+                    case ShiftType.Lsl: m = InstEmitAluHelper.GetLslC(context, m, setCarry, shift); break;
+                    case ShiftType.Lsr: m = InstEmitAluHelper.GetLsrC(context, m, setCarry, shift); break;
+                    case ShiftType.Asr: m = InstEmitAluHelper.GetAsrC(context, m, setCarry, shift); break;
+                    case ShiftType.Ror:
+                        if (op.Immediate != 0)
+                        {
+                            m = InstEmitAluHelper.GetRorC(context, m, setCarry, shift);
+                        }
+                        else
+                        {
+                            m = InstEmitAluHelper.GetRrxC(context, m, setCarry);
+                        }
+                        break;
+                }
+            }
+
+            return m;
         }
     }
 }

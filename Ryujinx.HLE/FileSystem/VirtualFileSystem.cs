@@ -1,3 +1,11 @@
+using LibHac;
+using LibHac.Common;
+using LibHac.Fs;
+using LibHac.Fs.Fsa;
+using LibHac.FsSrv;
+using LibHac.FsSystem;
+using LibHac.Spl;
+using Ryujinx.Common.Configuration;
 using Ryujinx.HLE.FileSystem.Content;
 using Ryujinx.HLE.HOS;
 using System;
@@ -7,14 +15,28 @@ namespace Ryujinx.HLE.FileSystem
 {
     public class VirtualFileSystem : IDisposable
     {
-        public const string BasePath   = "RyuFs";
-        public const string NandPath   = "nand";
-        public const string SdCardPath = "sdmc";
-        public const string SystemPath = "system";
+        public const string NandPath   = AppDataManager.DefaultNandDir;
+        public const string SdCardPath = AppDataManager.DefaultSdcardDir;
 
         public static string SafeNandPath   = Path.Combine(NandPath, "safe");
         public static string SystemNandPath = Path.Combine(NandPath, "system");
         public static string UserNandPath   = Path.Combine(NandPath, "user");
+        
+        private static bool _isInitialized = false;
+
+        public Keyset           KeySet   { get; private set; }
+        public FileSystemServer FsServer { get; private set; }
+        public FileSystemClient FsClient { get; private set; }
+        public EmulatedGameCard GameCard { get; private set; }
+        public EmulatedSdCard   SdCard   { get; private set; }
+
+        public ModLoader ModLoader {get; private set;}
+
+        private VirtualFileSystem()
+        {
+            Reload();
+            ModLoader = new ModLoader(); // Should only be created once
+        }
 
         public Stream RomFs { get; private set; }
 
@@ -54,11 +76,9 @@ namespace Ryujinx.HLE.FileSystem
             return fullPath;
         }
 
-        public string GetSdCardPath() => MakeFullPath(SdCardPath);
-
+        internal string GetBasePath() => AppDataManager.BaseDirPath;
+        internal string GetSdCardPath() => MakeFullPath(SdCardPath);
         public string GetNandPath() => MakeFullPath(NandPath);
-
-        public string GetSystemPath() => MakeFullPath(SystemPath);
 
         internal string GetSavePath(ServiceCtx context, SaveInfo saveInfo, bool isDirectory = true)
         {
@@ -176,11 +196,90 @@ namespace Ryujinx.HLE.FileSystem
             return new DriveInfo(Path.GetPathRoot(GetBasePath()));
         }
 
-        public string GetBasePath()
+        public void Reload()
         {
-            string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            ReloadKeySet();
 
-            return Path.Combine(appDataPath, BasePath);
+            LocalFileSystem serverBaseFs = new LocalFileSystem(GetBasePath());
+
+            DefaultFsServerObjects fsServerObjects = DefaultFsServerObjects.GetDefaultEmulatedCreators(serverBaseFs, KeySet);
+
+            GameCard = fsServerObjects.GameCard;
+            SdCard   = fsServerObjects.SdCard;
+
+            SdCard.SetSdCardInsertionStatus(true);
+
+            FileSystemServerConfig fsServerConfig = new FileSystemServerConfig
+            {
+                FsCreators     = fsServerObjects.FsCreators,
+                DeviceOperator = fsServerObjects.DeviceOperator,
+                ExternalKeySet = KeySet.ExternalKeySet
+            };
+
+            FsServer = new FileSystemServer(fsServerConfig);
+            FsClient = FsServer.CreateFileSystemClient();
+        }
+
+
+        private void ReloadKeySet()
+        {
+            string keyFile        = null;
+            string titleKeyFile   = null;
+            string consoleKeyFile = null;
+
+            if (AppDataManager.Mode == AppDataManager.LaunchMode.UserProfile)
+            {
+                LoadSetAtPath(AppDataManager.KeysDirPathUser);
+            }
+
+            LoadSetAtPath(AppDataManager.KeysDirPath);
+
+            void LoadSetAtPath(string basePath)
+            {
+                string localKeyFile        = Path.Combine(basePath, "prod.keys");
+                string localTitleKeyFile   = Path.Combine(basePath, "title.keys");
+                string localConsoleKeyFile = Path.Combine(basePath, "console.keys");
+
+                if (File.Exists(localKeyFile))
+                {
+                    keyFile = localKeyFile;
+                }
+
+                if (File.Exists(localTitleKeyFile))
+                {
+                    titleKeyFile = localTitleKeyFile;
+                }
+
+                if (File.Exists(localConsoleKeyFile))
+                {
+                    consoleKeyFile = localConsoleKeyFile;
+                }
+            }
+
+            KeySet = ExternalKeyReader.ReadKeyFile(keyFile, titleKeyFile, consoleKeyFile);
+        }
+
+        public void ImportTickets(IFileSystem fs)
+        {
+            foreach (DirectoryEntryEx ticketEntry in fs.EnumerateEntries("/", "*.tik"))
+            {
+                Result result = fs.OpenFile(out IFile ticketFile, ticketEntry.FullPath.ToU8Span(), OpenMode.Read);
+
+                if (result.IsSuccess())
+                {
+                    Ticket ticket = new Ticket(ticketFile.AsStream());
+
+                    if (ticket.TitleKeyType == TitleKeyType.Common)
+                    {
+                        KeySet.ExternalKeySet.Add(new RightsId(ticket.RightsId), new AccessKey(ticket.GetTitleKey(KeySet)));
+                    }
+                }
+            }
+        }
+
+        public void Unload()
+        {
+            RomFs?.Dispose();
         }
 
         public void Dispose()
@@ -192,8 +291,20 @@ namespace Ryujinx.HLE.FileSystem
         {
             if (disposing)
             {
-                RomFs?.Dispose();
+                Unload();
             }
+        }
+
+        public static VirtualFileSystem CreateInstance()
+        {
+            if (_isInitialized)
+            {
+                throw new InvalidOperationException($"VirtualFileSystem can only be instantiated once!");
+            }
+
+            _isInitialized = true;
+
+            return new VirtualFileSystem();
         }
     }
 }

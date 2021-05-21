@@ -9,7 +9,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
     {
         public ISettingsServer(ServiceCtx context) { }
 
-        [Command(0)]
+        [CommandHipc(0)]
         // GetLanguageCode() -> nn::settings::LanguageCode
         public ResultCode GetLanguageCode(ServiceCtx context)
         {
@@ -18,7 +18,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             return ResultCode.Success;
         }
 
-        [Command(1)]
+        [CommandHipc(1)]
         // GetAvailableLanguageCodes() -> (u32, buffer<nn::settings::LanguageCode, 0xa>)
         public ResultCode GetAvailableLanguageCodes(ServiceCtx context)
         {
@@ -29,7 +29,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
                     0xF);
         }
 
-        [Command(2)] // 4.0.0+
+        [CommandHipc(2)] // 4.0.0+
         // MakeLanguageCode(nn::settings::Language language_index) -> nn::settings::LanguageCode
         public ResultCode MakeLanguageCode(ServiceCtx context)
         {
@@ -45,7 +45,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             return ResultCode.Success;
         }
 
-        [Command(3)]
+        [CommandHipc(3)]
         // GetAvailableLanguageCodeCount() -> u32
         public ResultCode GetAvailableLanguageCodeCount(ServiceCtx context)
         {
@@ -54,7 +54,25 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             return ResultCode.Success;
         }
 
-        [Command(5)]
+        [CommandHipc(4)]
+        // GetRegionCode() -> u32 nn::settings::RegionCode
+        public ResultCode GetRegionCode(ServiceCtx context)
+        {
+            // NOTE: Service mount 0x8000000000000050 savedata and read the region code here.
+
+            RegionCode regionCode = (RegionCode)context.Device.System.State.DesiredRegionCode;
+
+            if (regionCode < RegionCode.Min || regionCode > RegionCode.Max)
+            {
+                regionCode = RegionCode.USA;
+            }
+
+            context.ResponseData.Write((uint)regionCode);
+
+            return ResultCode.Success;
+        }
+
+        [CommandHipc(5)]
         // GetAvailableLanguageCodes2() -> (u32, buffer<nn::settings::LanguageCode, 6>)
         public ResultCode GetAvailableLanguageCodes2(ServiceCtx context)
         {
@@ -65,7 +83,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
                     SystemStateMgr.LanguageCodes.Length);
         }
 
-        [Command(6)]
+        [CommandHipc(6)]
         // GetAvailableLanguageCodeCount2() -> u32
         public ResultCode GetAvailableLanguageCodeCount2(ServiceCtx context)
         {
@@ -74,18 +92,115 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             return ResultCode.Success;
         }
 
-        [Command(8)] // 5.0.0+
+        [CommandHipc(7)] // 4.0.0+
+        // GetKeyCodeMap() -> buffer<nn::kpr::KeyCodeMap, 0x16>
+        public ResultCode GetKeyCodeMap(ServiceCtx context)
+        {
+            return GetKeyCodeMapImpl(context, 1);
+        }
+
+        [CommandHipc(8)] // 5.0.0+
         // GetQuestFlag() -> bool
         public ResultCode GetQuestFlag(ServiceCtx context)
         {
             context.ResponseData.Write(false);
 
-            Logger.PrintStub(LogClass.ServiceSet);
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
 
             return ResultCode.Success;
         }
 
-        public ResultCode GetAvailableLanguagesCodesImpl(ServiceCtx context, long position, long size, int maxSize)
+        [CommandHipc(9)] // 6.0.0+
+        // GetKeyCodeMap2() -> buffer<nn::kpr::KeyCodeMap, 0x16>
+        public ResultCode GetKeyCodeMap2(ServiceCtx context)
+        {
+            return GetKeyCodeMapImpl(context, 2);
+        }
+
+        public ResultCode GetKeyCodeMapImpl(ServiceCtx context, int version)
+        {
+            if (context.Request.ReceiveBuff[0].Size != 0x1000)
+            {
+                Logger.Warning?.Print(LogClass.ServiceSet, "Bad size");
+            }
+
+            byte[] keyCodeMap;
+
+            switch ((KeyboardLayout)context.Device.System.State.DesiredKeyboardLayout)
+            {
+                case KeyboardLayout.EnglishUs:
+
+                    long langCode = context.Device.System.State.DesiredLanguageCode;
+
+                    if (langCode == 0x736e61482d687a) // Zh-Hans
+                    {
+                        keyCodeMap = KeyCodeMaps.ChineseSimplified;
+                    }
+                    else if (langCode == 0x746e61482d687a) // Zh-Hant
+                    {
+                        keyCodeMap = KeyCodeMaps.ChineseTraditional;
+                    }
+                    else
+                    {
+                        keyCodeMap = KeyCodeMaps.EnglishUk;
+                    }
+
+                    break;
+                case KeyboardLayout.EnglishUsInternational:
+                    keyCodeMap = KeyCodeMaps.EnglishUsInternational;
+                    break;
+                case KeyboardLayout.EnglishUk:
+                    keyCodeMap = KeyCodeMaps.EnglishUk;
+                    break;
+                case KeyboardLayout.French:
+                    keyCodeMap = KeyCodeMaps.French;
+                    break;
+                case KeyboardLayout.FrenchCa:
+                    keyCodeMap = KeyCodeMaps.FrenchCa;
+                    break;
+                case KeyboardLayout.Spanish:
+                    keyCodeMap = KeyCodeMaps.Spanish;
+                    break;
+                case KeyboardLayout.SpanishLatin:
+                    keyCodeMap = KeyCodeMaps.SpanishLatin;
+                    break;
+                case KeyboardLayout.German:
+                    keyCodeMap = KeyCodeMaps.German;
+                    break;
+                case KeyboardLayout.Italian:
+                    keyCodeMap = KeyCodeMaps.Italian;
+                    break;
+                case KeyboardLayout.Portuguese:
+                    keyCodeMap = KeyCodeMaps.Portuguese;
+                    break;
+                case KeyboardLayout.Russian:
+                    keyCodeMap = KeyCodeMaps.Russian;
+                    break;
+                case KeyboardLayout.Korean:
+                    keyCodeMap = KeyCodeMaps.Korean;
+                    break;
+                case KeyboardLayout.ChineseSimplified:
+                    keyCodeMap = KeyCodeMaps.ChineseSimplified;
+                    break;
+                case KeyboardLayout.ChineseTraditional:
+                    keyCodeMap = KeyCodeMaps.ChineseTraditional;
+                    break;
+                default: // KeyboardLayout.Default
+                    keyCodeMap = KeyCodeMaps.Default;
+                    break;
+            }
+
+            context.Memory.Write(context.Request.ReceiveBuff[0].Position, keyCodeMap);
+
+            if (version == 1 && context.Device.System.State.DesiredKeyboardLayout == (long)KeyboardLayout.Default)
+            {
+                context.Memory.Write(context.Request.ReceiveBuff[0].Position, (byte)0x01);
+            }
+
+            return ResultCode.Success;
+        }
+
+        public ResultCode GetAvailableLanguagesCodesImpl(ServiceCtx context, ulong position, ulong size, int maxSize)
         {
             int count = (int)(size / 8);
 
@@ -96,7 +211,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
 
             for (int index = 0; index < count; index++)
             {
-                context.Memory.WriteInt64(position, SystemStateMgr.GetLanguageCode(index));
+                context.Memory.Write(position, SystemStateMgr.GetLanguageCode(index));
 
                 position += 8;
             }

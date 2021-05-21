@@ -15,14 +15,7 @@ namespace ARMeilleure.Instructions
         {
             OpCodeBImmAl op = (OpCodeBImmAl)context.CurrOp;
 
-            if (context.CurrBlock.Branch != null)
-            {
-                context.Branch(context.GetLabel((ulong)op.Immediate));
-            }
-            else
-            {
-                context.Return(Const(op.Immediate));
-            }
+            context.Branch(context.GetLabel((ulong)op.Immediate));
         }
 
         public static void B_Cond(ArmEmitterContext context)
@@ -56,7 +49,7 @@ namespace ARMeilleure.Instructions
         {
             OpCodeBReg op = (OpCodeBReg)context.CurrOp;
 
-            EmitVirtualJump(context, GetIntOrZR(context, op.Rn));
+            EmitVirtualJump(context, GetIntOrZR(context, op.Rn), op.Rn == RegisterAlias.Lr);
         }
 
         public static void Cbnz(ArmEmitterContext context) => EmitCb(context, onNotZero: true);
@@ -71,7 +64,9 @@ namespace ARMeilleure.Instructions
 
         public static void Ret(ArmEmitterContext context)
         {
-            context.Return(context.BitwiseOr(GetIntOrZR(context, RegisterAlias.Lr), Const(CallFlag)));
+            OpCodeBReg op = (OpCodeBReg)context.CurrOp;
+
+            context.Return(GetIntOrZR(context, op.Rn));
         }
 
         public static void Tbnz(ArmEmitterContext context) => EmitTb(context, onNotZero: true);
@@ -90,69 +85,22 @@ namespace ARMeilleure.Instructions
         {
             OpCodeBImm op = (OpCodeBImm)context.CurrOp;
 
-            if (context.CurrBlock.Branch != null)
-            {
-                EmitCondBranch(context, context.GetLabel((ulong)op.Immediate), cond);
-
-                if (context.CurrBlock.Next == null)
-                {
-                    context.Return(Const(op.Address + 4));
-                }
-            }
-            else
-            {
-                Operand lblTaken = Label();
-
-                EmitCondBranch(context, lblTaken, cond);
-
-                context.Return(Const(op.Address + 4));
-
-                context.MarkLabel(lblTaken);
-
-                context.Return(Const(op.Immediate));
-            }
+            EmitCondBranch(context, context.GetLabel((ulong)op.Immediate), cond);
         }
 
         private static void EmitBranch(ArmEmitterContext context, Operand value, bool onNotZero)
         {
             OpCodeBImm op = (OpCodeBImm)context.CurrOp;
 
-            if (context.CurrBlock.Branch != null)
+            Operand lblTarget = context.GetLabel((ulong)op.Immediate);
+
+            if (onNotZero)
             {
-                Operand lblTarget = context.GetLabel((ulong)op.Immediate);
-
-                if (onNotZero)
-                {
-                    context.BranchIfTrue(lblTarget, value);
-                }
-                else
-                {
-                    context.BranchIfFalse(lblTarget, value);
-                }
-
-                if (context.CurrBlock.Next == null)
-                {
-                    context.Return(Const(op.Address + 4));
-                }
+                context.BranchIfTrue(lblTarget, value);
             }
             else
             {
-                Operand lblTaken = Label();
-
-                if (onNotZero)
-                {
-                    context.BranchIfTrue(lblTaken, value);
-                }
-                else
-                {
-                    context.BranchIfFalse(lblTaken, value);
-                }
-
-                context.Return(Const(op.Address + 4));
-
-                context.MarkLabel(lblTaken);
-
-                context.Return(Const(op.Immediate));
+                context.BranchIfFalse(lblTarget, value);
             }
         }
     }

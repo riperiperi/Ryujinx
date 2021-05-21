@@ -1,10 +1,12 @@
+using LibHac.Common;
 using LibHac.Fs;
+using LibHac.Fs.Fsa;
 using LibHac.FsSystem;
 using LibHac.FsSystem.NcaUtils;
-using Ryujinx.Common;
 using Ryujinx.HLE.Exceptions;
 using Ryujinx.HLE.FileSystem;
 using Ryujinx.HLE.FileSystem.Content;
+using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
@@ -17,9 +19,7 @@ namespace Ryujinx.HLE.HOS.Font
     {
         private Switch _device;
 
-        private long _physicalAddress;
-
-        private string _fontsPath;
+        private ulong _physicalAddress;
 
         private struct FontInfo
         {
@@ -35,26 +35,30 @@ namespace Ryujinx.HLE.HOS.Font
 
         private Dictionary<SharedFontType, FontInfo> _fontData;
 
-        public SharedFontManager(Switch device, long physicalAddress)
+        public SharedFontManager(Switch device, ulong physicalAddress)
         {
             _physicalAddress = physicalAddress;
+            _device          = device;
+        }
 
-            _device = device;
+        public void Initialize(ContentManager contentManager)
+        {
+            _fontData?.Clear();
+            _fontData = null;
 
-            _fontsPath = Path.Combine(device.FileSystem.GetSystemPath(), "fonts");
         }
 
         public void EnsureInitialized(ContentManager contentManager)
         {
             if (_fontData == null)
             {
-                _device.Memory.FillWithZeros(_physicalAddress, Horizon.FontSize);
+                _device.Memory.ZeroFill(_physicalAddress, Horizon.FontSize);
 
                 uint fontOffset = 0;
 
                 FontInfo CreateFont(string name)
                 {
-                    if (contentManager.TryGetFontTitle(name, out long fontTitle) &&
+                    if (contentManager.TryGetFontTitle(name, out ulong fontTitle) &&
                         contentManager.TryGetFontFilename(name, out string fontFilename))
                     {
                         string contentPath = contentManager.GetInstalledContentPath(fontTitle, StorageId.NandSystem, NcaContentType.Data);
@@ -63,17 +67,17 @@ namespace Ryujinx.HLE.HOS.Font
                         if (!string.IsNullOrWhiteSpace(fontPath))
                         {
                             byte[] data;
-                            
+
                             using (IStorage ncaFileStream = new LocalStorage(fontPath, FileAccess.Read, FileMode.Open))
                             {
                                 Nca         nca          = new Nca(_device.System.KeySet, ncaFileStream);
                                 IFileSystem romfs        = nca.OpenFileSystem(NcaSectionType.Data, _device.System.FsIntegrityCheckLevel);
 
-                                romfs.OpenFile(out IFile fontFile, "/" + fontFilename, OpenMode.Read).ThrowIfFailure();
+                                romfs.OpenFile(out IFile fontFile, ("/" + fontFilename).ToU8Span(), OpenMode.Read).ThrowIfFailure();
 
                                 data = DecryptFont(fontFile.AsStream());
                             }
-                                
+
                             FontInfo info = new FontInfo((int)fontOffset, data.Length);
 
                             WriteMagicAndSize(_physicalAddress + fontOffset, data.Length);
@@ -84,37 +88,24 @@ namespace Ryujinx.HLE.HOS.Font
 
                             for (; fontOffset - start < data.Length; fontOffset++)
                             {
-                                _device.Memory.WriteByte(_physicalAddress + fontOffset, data[fontOffset - start]);
+                                _device.Memory.Write(_physicalAddress + fontOffset, data[fontOffset - start]);
                             }
 
                             return info;
                         }
-                    }
-
-                    string fontFilePath = Path.Combine(_fontsPath, name + ".ttf");
-
-                    if (File.Exists(fontFilePath))
-                    {
-                        byte[] data = File.ReadAllBytes(fontFilePath);
-
-                        FontInfo info = new FontInfo((int)fontOffset, data.Length);
-
-                        WriteMagicAndSize(_physicalAddress + fontOffset, data.Length);
-
-                        fontOffset += 8;
-
-                        uint start = fontOffset;
-
-                        for (; fontOffset - start < data.Length; fontOffset++)
+                        else
                         {
-                            _device.Memory.WriteByte(_physicalAddress + fontOffset, data[fontOffset - start]);
-                        }
+                            if (!contentManager.TryGetSystemTitlesName(fontTitle, out string titleName))
+                            {
+                                titleName = "Unknown";
+                            }
 
-                        return info;
+                            throw new InvalidSystemResourceException($"{titleName} ({fontTitle:x8}) system title not found! This font will not work, provide the system archive to fix this error. (See https://github.com/Ryujinx/Ryujinx#requirements for more information)");
+                        }
                     }
                     else
                     {
-                        throw new InvalidSystemResourceException($"Font \"{name}.ttf\" not found. Please provide it in \"{_fontsPath}\".");
+                        throw new ArgumentException($"Unknown font \"{name}\"!");
                     }
                 }
 
@@ -138,15 +129,15 @@ namespace Ryujinx.HLE.HOS.Font
             }
         }
 
-        private void WriteMagicAndSize(long position, int size)
+        private void WriteMagicAndSize(ulong address, int size)
         {
             const int decMagic = 0x18029a7f;
             const int key      = 0x49621806;
 
             int encryptedSize = BinaryPrimitives.ReverseEndianness(size ^ key);
 
-            _device.Memory.WriteInt32(position + 0, decMagic);
-            _device.Memory.WriteInt32(position + 4, encryptedSize);
+            _device.Memory.Write(address + 0, decMagic);
+            _device.Memory.Write(address + 4, encryptedSize);
         }
 
         public int GetFontSize(SharedFontType fontType)

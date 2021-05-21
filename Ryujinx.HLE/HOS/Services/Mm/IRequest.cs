@@ -1,105 +1,196 @@
 using Ryujinx.Common.Logging;
+using Ryujinx.HLE.HOS.Services.Mm.Types;
+using System.Collections.Generic;
 
 namespace Ryujinx.HLE.HOS.Services.Mm
 {
     [Service("mm:u")]
     class IRequest : IpcService
     {
+        private static object                  _sessionListLock = new object();
+        private static List<MultiMediaSession> _sessionList     = new List<MultiMediaSession>();
+
+        private static uint _uniqueId = 1;
+
         public IRequest(ServiceCtx context) { }
 
-        [Command(0)]
+        [CommandHipc(0)]
         // InitializeOld(u32, u32, u32)
         public ResultCode InitializeOld(ServiceCtx context)
         {
-            int unknown0 = context.RequestData.ReadInt32();
-            int unknown1 = context.RequestData.ReadInt32();
-            int unknown2 = context.RequestData.ReadInt32();
+            MultiMediaOperationType operationType    = (MultiMediaOperationType)context.RequestData.ReadUInt32();
+            int                     fgmId            = context.RequestData.ReadInt32();
+            bool                    isAutoClearEvent = context.RequestData.ReadInt32() != 0;
 
-            Logger.PrintStub(LogClass.ServiceMm, new { unknown0, unknown1, unknown2 });
+            Logger.Stub?.PrintStub(LogClass.ServiceMm, new { operationType, fgmId, isAutoClearEvent });
+
+            Register(operationType, fgmId, isAutoClearEvent);
 
             return ResultCode.Success;
         }
 
-        [Command(1)]
+        [CommandHipc(1)]
         // FinalizeOld(u32)
         public ResultCode FinalizeOld(ServiceCtx context)
         {
-            context.Device.Gpu.UninitializeVideoDecoder();
+            MultiMediaOperationType operationType = (MultiMediaOperationType)context.RequestData.ReadUInt32();
 
-            Logger.PrintStub(LogClass.ServiceMm);
+            Logger.Stub?.PrintStub(LogClass.ServiceMm, new { operationType });
+
+            lock (_sessionListLock)
+            {
+                _sessionList.Remove(GetSessionByType(operationType));
+            }
 
             return ResultCode.Success;
         }
 
-        [Command(2)]
+        [CommandHipc(2)]
         // SetAndWaitOld(u32, u32, u32)
         public ResultCode SetAndWaitOld(ServiceCtx context)
         {
-            int unknown0 = context.RequestData.ReadInt32();
-            int unknown1 = context.RequestData.ReadInt32();
-            int unknown2 = context.RequestData.ReadInt32();
+            MultiMediaOperationType operationType = (MultiMediaOperationType)context.RequestData.ReadUInt32();
+            uint                    frequenceHz   = context.RequestData.ReadUInt32();
+            int                     timeout       = context.RequestData.ReadInt32();
 
-            Logger.PrintStub(LogClass.ServiceMm, new { unknown0, unknown1, unknown2 });
+            Logger.Stub?.PrintStub(LogClass.ServiceMm, new { operationType, frequenceHz, timeout });
+
+            lock (_sessionListLock)
+            {
+                GetSessionByType(operationType)?.SetAndWait(frequenceHz, timeout);
+            }
+
             return ResultCode.Success;
         }
 
-        [Command(3)]
+        [CommandHipc(3)]
         // GetOld(u32) -> u32
         public ResultCode GetOld(ServiceCtx context)
         {
-            int unknown0 = context.RequestData.ReadInt32();
+            MultiMediaOperationType operationType = (MultiMediaOperationType)context.RequestData.ReadUInt32();
 
-            Logger.PrintStub(LogClass.ServiceMm, new { unknown0 });
+            Logger.Stub?.PrintStub(LogClass.ServiceMm, new { operationType });
 
-            context.ResponseData.Write(0);
+            lock (_sessionListLock)
+            {
+                MultiMediaSession session = GetSessionByType(operationType);
+
+                uint currentValue = session == null ? 0 : session.CurrentValue;
+
+                context.ResponseData.Write(currentValue);
+            }
 
             return ResultCode.Success;
         }
 
-        [Command(4)]
-        // Initialize()
+        [CommandHipc(4)]
+        // Initialize(u32, u32, u32) -> u32
         public ResultCode Initialize(ServiceCtx context)
         {
-            Logger.PrintStub(LogClass.ServiceMm);
+            MultiMediaOperationType operationType    = (MultiMediaOperationType)context.RequestData.ReadUInt32();
+            int                     fgmId            = context.RequestData.ReadInt32();
+            bool                    isAutoClearEvent = context.RequestData.ReadInt32() != 0;
+
+            Logger.Stub?.PrintStub(LogClass.ServiceMm, new { operationType, fgmId, isAutoClearEvent });
+
+            uint id = Register(operationType, fgmId, isAutoClearEvent);
+
+            context.ResponseData.Write(id);
 
             return ResultCode.Success;
         }
 
-        [Command(5)]
+        [CommandHipc(5)]
         // Finalize(u32)
         public ResultCode Finalize(ServiceCtx context)
         {
-            context.Device.Gpu.UninitializeVideoDecoder();
+            uint id = context.RequestData.ReadUInt32();
 
-            Logger.PrintStub(LogClass.ServiceMm);
+            Logger.Stub?.PrintStub(LogClass.ServiceMm, new { id });
+
+            lock (_sessionListLock)
+            {
+                _sessionList.Remove(GetSessionById(id));
+            }
 
             return ResultCode.Success;
         }
 
-        [Command(6)]
+        [CommandHipc(6)]
         // SetAndWait(u32, u32, u32)
         public ResultCode SetAndWait(ServiceCtx context)
         {
-            int unknown0 = context.RequestData.ReadInt32();
-            int unknown1 = context.RequestData.ReadInt32();
-            int unknown2 = context.RequestData.ReadInt32();
+            uint id          = context.RequestData.ReadUInt32();
+            uint frequenceHz = context.RequestData.ReadUInt32();
+            int  timeout     = context.RequestData.ReadInt32();
 
-            Logger.PrintStub(LogClass.ServiceMm, new { unknown0, unknown1, unknown2 });
+            Logger.Stub?.PrintStub(LogClass.ServiceMm, new { id, frequenceHz, timeout });
+
+            lock (_sessionListLock)
+            {
+                GetSessionById(id)?.SetAndWait(frequenceHz, timeout);
+            }
 
             return ResultCode.Success;
         }
 
-        [Command(7)]
+        [CommandHipc(7)]
         // Get(u32) -> u32
         public ResultCode Get(ServiceCtx context)
         {
-            int unknown0 = context.RequestData.ReadInt32();
+            uint id = context.RequestData.ReadUInt32();
 
-            Logger.PrintStub(LogClass.ServiceMm, new { unknown0 });
+            Logger.Stub?.PrintStub(LogClass.ServiceMm, new { id });
 
-            context.ResponseData.Write(0);
+            lock (_sessionListLock)
+            {
+                MultiMediaSession session = GetSessionById(id);
+
+                uint currentValue = session == null ? 0 : session.CurrentValue;
+
+                context.ResponseData.Write(currentValue);
+            }
 
             return ResultCode.Success;
+        }
+
+        private MultiMediaSession GetSessionById(uint id)
+        {
+            foreach (MultiMediaSession session in _sessionList)
+            {
+                if (session.Id == id)
+                {
+                    return session;
+                }
+            }
+
+            return null;
+        }
+
+        private MultiMediaSession GetSessionByType(MultiMediaOperationType type)
+        {
+            foreach (MultiMediaSession session in _sessionList)
+            {
+                if (session.Type == type)
+                {
+                    return session;
+                }
+            }
+
+            return null;
+        }
+
+        private uint Register(MultiMediaOperationType type, int fgmId, bool isAutoClearEvent)
+        {
+            lock (_sessionListLock)
+            {
+                // Nintendo ignore the fgm id as the other interfaces were deprecated.
+                MultiMediaSession session = new MultiMediaSession(_uniqueId++, type, isAutoClearEvent);
+
+                _sessionList.Add(session);
+
+                return session.Id;
+            }
         }
     }
 }

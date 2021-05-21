@@ -1,8 +1,10 @@
+using ARMeilleure.Common;
 using ARMeilleure.Decoders;
 using ARMeilleure.Instructions;
 using ARMeilleure.IntermediateRepresentation;
 using ARMeilleure.Memory;
 using ARMeilleure.State;
+using ARMeilleure.Translation.Cache;
 using System.Collections.Generic;
 
 using static ARMeilleure.IntermediateRepresentation.OperandHelper;
@@ -11,7 +13,7 @@ namespace ARMeilleure.Translation
 {
     class ArmEmitterContext : EmitterContext
     {
-        private Dictionary<ulong, Operand> _labels;
+        private readonly Dictionary<ulong, Operand> _labels;
 
         private OpCode _optOpLastCompare;
         private OpCode _optOpLastFlagSet;
@@ -37,14 +39,29 @@ namespace ARMeilleure.Translation
 
         public OpCode CurrOp { get; set; }
 
-        public MemoryManager Memory { get; }
+        public IMemoryManager Memory { get; }
 
+        public JumpTable JumpTable { get; }
+        public EntryTable<uint> CountTable { get; }
+
+        public ulong EntryAddress { get; }
+        public bool HighCq { get; }
         public Aarch32Mode Mode { get; }
 
-        public ArmEmitterContext(MemoryManager memory, Aarch32Mode mode)
+        public ArmEmitterContext(
+            IMemoryManager memory,
+            JumpTable jumpTable,
+            EntryTable<uint> countTable,
+            ulong entryAddress,
+            bool highCq,
+            Aarch32Mode mode)
         {
             Memory = memory;
-            Mode   = mode;
+            JumpTable = jumpTable;
+            CountTable = countTable;
+            EntryAddress = entryAddress;
+            HighCq = highCq;
+            Mode = mode;
 
             _labels = new Dictionary<ulong, Operand>();
         }

@@ -1,5 +1,3 @@
-using Ryujinx.HLE.HOS.Services.Account.Acc;
-using Ryujinx.HLE.Utilities;
 using System;
 
 namespace Ryujinx.HLE.HOS.SystemState
@@ -27,14 +25,13 @@ namespace Ryujinx.HLE.HOS.SystemState
             "zh-Hant"
         };
 
-        internal static string[] AudioOutputs = new string[]
-        {
-            "AudioTvOutput",
-            "AudioStereoJackOutput",
-            "AudioBuiltInSpeakerOutput"
-        };
+        internal long DesiredKeyboardLayout { get; private set; }
+
+        internal SystemLanguage DesiredSystemLanguage { get; private set; }
 
         internal long DesiredLanguageCode { get; private set; }
+
+        internal uint DesiredRegionCode { get; private set; }
 
         public TitleLanguage DesiredTitleLanguage { get; private set; }
 
@@ -46,23 +43,16 @@ namespace Ryujinx.HLE.HOS.SystemState
 
         public bool InstallContents { get; set; }
 
-        public AccountUtils Account { get; private set; }
-
         public SystemStateMgr()
         {
-            SetAudioOutputAsBuiltInSpeaker();
-
-            Account = new AccountUtils();
-
-            UInt128 defaultUid = new UInt128("00000000000000000000000000000001");
-
-            Account.AddUser(defaultUid, "Player");
-            Account.OpenUser(defaultUid);
+            // TODO: Let user specify.
+            DesiredKeyboardLayout = (long)KeyboardLayout.Default;
         }
 
         public void SetLanguage(SystemLanguage language)
         {
-            DesiredLanguageCode = GetLanguageCode((int)language);
+            DesiredSystemLanguage = language;
+            DesiredLanguageCode = GetLanguageCode((int)DesiredSystemLanguage);
 
             switch (language)
             {
@@ -80,19 +70,9 @@ namespace Ryujinx.HLE.HOS.SystemState
             }
         }
 
-        public void SetAudioOutputAsTv()
+        public void SetRegion(RegionCode region)
         {
-            ActiveAudioOutput = AudioOutputs[0];
-        }
-
-        public void SetAudioOutputAsStereoJack()
-        {
-            ActiveAudioOutput = AudioOutputs[1];
-        }
-
-        public void SetAudioOutputAsBuiltInSpeaker()
-        {
-            ActiveAudioOutput = AudioOutputs[2];
+            DesiredRegionCode = (uint)region;
         }
 
         internal static long GetLanguageCode(int index)

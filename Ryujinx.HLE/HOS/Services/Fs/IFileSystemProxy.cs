@@ -1,44 +1,46 @@
 using LibHac;
 using LibHac.Fs;
-using LibHac.FsService;
+using LibHac.FsSrv;
 using LibHac.FsSystem;
 using LibHac.FsSystem.NcaUtils;
+using LibHac.Ncm;
+using Ryujinx.Common;
 using Ryujinx.Common.Logging;
-using Ryujinx.HLE.FileSystem;
+using Ryujinx.Cpu;
 using Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy;
 using System.IO;
 
-using static Ryujinx.HLE.FileSystem.VirtualFileSystem;
 using static Ryujinx.HLE.Utilities.StringUtils;
+using StorageId = Ryujinx.HLE.FileSystem.StorageId;
 
 namespace Ryujinx.HLE.HOS.Services.Fs
 {
     [Service("fsp-srv")]
     class IFileSystemProxy : IpcService
     {
-        private LibHac.FsService.IFileSystemProxy _baseFileSystemProxy;
+        private LibHac.FsSrv.IFileSystemProxy _baseFileSystemProxy;
 
         public IFileSystemProxy(ServiceCtx context)
         {
-            _baseFileSystemProxy = context.Device.System.FsServer.CreateFileSystemProxyService();
+            _baseFileSystemProxy = context.Device.FileSystem.FsServer.CreateFileSystemProxyService();
         }
 
-        [Command(1)]
+        [CommandHipc(1)]
         // Initialize(u64, pid)
         public ResultCode Initialize(ServiceCtx context)
         {
             return ResultCode.Success;
         }
 
-        [Command(8)]
-        // OpenFileSystemWithId(nn::fssrv::sf::FileSystemType filesystem_type, nn::ApplicationId tid, buffer<bytes<0x301>, 0x19, 0x301> path) 
+        [CommandHipc(8)]
+        // OpenFileSystemWithId(nn::fssrv::sf::FileSystemType filesystem_type, nn::ApplicationId tid, buffer<bytes<0x301>, 0x19, 0x301> path)
         // -> object<nn::fssrv::sf::IFileSystem> contentFs
         public ResultCode OpenFileSystemWithId(ServiceCtx context)
         {
             FileSystemType fileSystemType = (FileSystemType)context.RequestData.ReadInt32();
-            long           titleId        = context.RequestData.ReadInt64();
-            string         switchPath     = ReadUtf8String(context);
-            string         fullPath       = context.Device.FileSystem.SwitchPathToSystemPath(switchPath);
+            ulong titleId = context.RequestData.ReadUInt64();
+            string switchPath = ReadUtf8String(context);
+            string fullPath = context.Device.FileSystem.SwitchPathToSystemPath(switchPath);
 
             if (!File.Exists(fullPath))
             {
@@ -58,7 +60,7 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             }
 
             FileStream fileStream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
-            string     extension  = Path.GetExtension(fullPath);
+            string extension = Path.GetExtension(fullPath);
 
             if (extension == ".nca")
             {
@@ -86,57 +88,104 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return ResultCode.InvalidInput;
         }
 
-        [Command(11)]
+        [CommandHipc(11)]
         // OpenBisFileSystem(nn::fssrv::sf::Partition partitionID, buffer<bytes<0x301>, 0x19, 0x301>) -> object<nn::fssrv::sf::IFileSystem> Bis
         public ResultCode OpenBisFileSystem(ServiceCtx context)
         {
-            int    bisPartitionId   = context.RequestData.ReadInt32();
-            string partitionString  = ReadUtf8String(context);
-            string bisPartitionPath = string.Empty;
+            BisPartitionId bisPartitionId = (BisPartitionId)context.RequestData.ReadInt32();
 
-            switch (bisPartitionId)
-            {
-                case 29:
-                    bisPartitionPath = SafeNandPath;
-                    break;
-                case 30:
-                case 31:
-                    bisPartitionPath = SystemNandPath;
-                    break;
-                case 32:
-                    bisPartitionPath = UserNandPath;
-                    break;
-                default:
-                    return ResultCode.InvalidInput;
-            }
+            Result rc = FileSystemProxyHelper.ReadFsPath(out FsPath path, context);
+            if (rc.IsFailure()) return (ResultCode)rc.Value;
 
-            string fullPath = context.Device.FileSystem.GetFullPartitionPath(bisPartitionPath);
-
-            LocalFileSystem fileSystem = new LocalFileSystem(fullPath);
+            rc = _baseFileSystemProxy.OpenBisFileSystem(out LibHac.Fs.Fsa.IFileSystem fileSystem, ref path, bisPartitionId);
+            if (rc.IsFailure()) return (ResultCode)rc.Value;
 
             MakeObject(context, new FileSystemProxy.IFileSystem(fileSystem));
 
             return ResultCode.Success;
         }
 
-        [Command(18)]
+        [CommandHipc(18)]
         // OpenSdCardFileSystem() -> object<nn::fssrv::sf::IFileSystem>
         public ResultCode OpenSdCardFileSystem(ServiceCtx context)
         {
-            string sdCardPath = context.Device.FileSystem.GetSdCardPath();
-
-            LocalFileSystem fileSystem = new LocalFileSystem(sdCardPath);
+            Result rc = _baseFileSystemProxy.OpenSdCardFileSystem(out LibHac.Fs.Fsa.IFileSystem fileSystem);
+            if (rc.IsFailure()) return (ResultCode)rc.Value;
 
             MakeObject(context, new FileSystemProxy.IFileSystem(fileSystem));
 
             return ResultCode.Success;
         }
 
-        [Command(30)]
+        [CommandHipc(21)]
+        public ResultCode DeleteSaveDataFileSystem(ServiceCtx context)
+        {
+            ulong saveDataId = context.RequestData.ReadUInt64();
+
+            Result result = _baseFileSystemProxy.DeleteSaveDataFileSystem(saveDataId);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(22)]
+        public ResultCode CreateSaveDataFileSystem(ServiceCtx context)
+        {
+            SaveDataAttribute attribute = context.RequestData.ReadStruct<SaveDataAttribute>();
+            SaveDataCreationInfo creationInfo = context.RequestData.ReadStruct<SaveDataCreationInfo>();
+            SaveMetaCreateInfo metaCreateInfo = context.RequestData.ReadStruct<SaveMetaCreateInfo>();
+
+            // TODO: There's currently no program registry for FS to reference.
+            // Workaround that by setting the application ID and owner ID if they're not already set
+            if (attribute.ProgramId == ProgramId.InvalidId)
+            {
+                attribute.ProgramId = new ProgramId(context.Device.Application.TitleId);
+            }
+
+            Logger.Info?.Print(LogClass.ServiceFs, $"Creating save with title ID {attribute.ProgramId.Value:x16}");
+
+            Result result = _baseFileSystemProxy.CreateSaveDataFileSystem(ref attribute, ref creationInfo, ref metaCreateInfo);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(23)]
+        public ResultCode CreateSaveDataFileSystemBySystemSaveDataId(ServiceCtx context)
+        {
+            SaveDataAttribute attribute = context.RequestData.ReadStruct<SaveDataAttribute>();
+            SaveDataCreationInfo creationInfo = context.RequestData.ReadStruct<SaveDataCreationInfo>();
+
+            Result result = _baseFileSystemProxy.CreateSaveDataFileSystemBySystemSaveDataId(ref attribute, ref creationInfo);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(25)]
+        public ResultCode DeleteSaveDataFileSystemBySaveDataSpaceId(ServiceCtx context)
+        {
+            SaveDataSpaceId spaceId = (SaveDataSpaceId)context.RequestData.ReadInt64();
+            ulong saveDataId = context.RequestData.ReadUInt64();
+
+            Result result = _baseFileSystemProxy.DeleteSaveDataFileSystemBySaveDataSpaceId(spaceId, saveDataId);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(28)]
+        public ResultCode DeleteSaveDataFileSystemBySaveDataAttribute(ServiceCtx context)
+        {
+            SaveDataSpaceId spaceId = (SaveDataSpaceId)context.RequestData.ReadInt64();
+            SaveDataAttribute attribute = context.RequestData.ReadStruct<SaveDataAttribute>();
+
+            Result result = _baseFileSystemProxy.DeleteSaveDataFileSystemBySaveDataAttribute(spaceId, ref attribute);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(30)]
         // OpenGameCardStorage(u32, u32) -> object<nn::fssrv::sf::IStorage>
         public ResultCode OpenGameCardStorage(ServiceCtx context)
         {
-            GameCardHandle       handle      = new GameCardHandle(context.RequestData.ReadInt32());
+            GameCardHandle handle = new GameCardHandle(context.RequestData.ReadInt32());
             GameCardPartitionRaw partitionId = (GameCardPartitionRaw)context.RequestData.ReadInt32();
 
             Result result = _baseFileSystemProxy.OpenGameCardStorage(out LibHac.Fs.IStorage storage, handle, partitionId);
@@ -149,49 +198,186 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return (ResultCode)result.Value;
         }
 
-        [Command(51)]
+        [CommandHipc(35)]
+        public ResultCode CreateSaveDataFileSystemWithHashSalt(ServiceCtx context)
+        {
+            SaveDataAttribute attribute = context.RequestData.ReadStruct<SaveDataAttribute>();
+            SaveDataCreationInfo creationInfo = context.RequestData.ReadStruct<SaveDataCreationInfo>();
+            SaveMetaCreateInfo metaCreateInfo = context.RequestData.ReadStruct<SaveMetaCreateInfo>();
+            HashSalt hashSalt = context.RequestData.ReadStruct<HashSalt>();
+
+            // TODO: There's currently no program registry for FS to reference.
+            // Workaround that by setting the application ID and owner ID if they're not already set
+            if (attribute.ProgramId == ProgramId.InvalidId)
+            {
+                attribute.ProgramId = new ProgramId(context.Device.Application.TitleId);
+            }
+
+            Result result = _baseFileSystemProxy.CreateSaveDataFileSystemWithHashSalt(ref attribute, ref creationInfo, ref metaCreateInfo, ref hashSalt);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(51)]
         // OpenSaveDataFileSystem(u8 save_data_space_id, nn::fssrv::sf::SaveStruct saveStruct) -> object<nn::fssrv::sf::IFileSystem> saveDataFs
         public ResultCode OpenSaveDataFileSystem(ServiceCtx context)
         {
-            ResultCode result = FileSystemProxyHelper.LoadSaveDataFileSystem(context, false, out FileSystemProxy.IFileSystem fileSystem);
+            SaveDataSpaceId spaceId = (SaveDataSpaceId)context.RequestData.ReadInt64();
+            SaveDataAttribute attribute = context.RequestData.ReadStruct<SaveDataAttribute>();
 
-            if (result == ResultCode.Success)
+            // TODO: There's currently no program registry for FS to reference.
+            // Workaround that by setting the application ID if it's not already set
+            if (attribute.ProgramId == ProgramId.InvalidId)
             {
-                MakeObject(context, fileSystem);
+                attribute.ProgramId = new ProgramId(context.Device.Application.TitleId);
             }
 
-            return result;
+            Result result = _baseFileSystemProxy.OpenSaveDataFileSystem(out LibHac.Fs.Fsa.IFileSystem fileSystem, spaceId, ref attribute);
+
+            if (result.IsSuccess())
+            {
+                MakeObject(context, new FileSystemProxy.IFileSystem(fileSystem));
+            }
+
+            return (ResultCode)result.Value;
         }
 
-        [Command(52)]
+        [CommandHipc(52)]
         // OpenSaveDataFileSystemBySystemSaveDataId(u8 save_data_space_id, nn::fssrv::sf::SaveStruct saveStruct) -> object<nn::fssrv::sf::IFileSystem> systemSaveDataFs
         public ResultCode OpenSaveDataFileSystemBySystemSaveDataId(ServiceCtx context)
         {
-            ResultCode result = FileSystemProxyHelper.LoadSaveDataFileSystem(context, false, out FileSystemProxy.IFileSystem fileSystem);
+            SaveDataSpaceId spaceId = (SaveDataSpaceId)context.RequestData.ReadInt64();
+            SaveDataAttribute attribute = context.RequestData.ReadStruct<SaveDataAttribute>();
 
-            if (result == ResultCode.Success)
+            Result result = _baseFileSystemProxy.OpenSaveDataFileSystemBySystemSaveDataId(out LibHac.Fs.Fsa.IFileSystem fileSystem, spaceId, ref attribute);
+
+            if (result.IsSuccess())
             {
-                MakeObject(context, fileSystem);
+                MakeObject(context, new FileSystemProxy.IFileSystem(fileSystem));
             }
 
-            return result;
+            return (ResultCode)result.Value;
         }
 
-        [Command(53)]
+        [CommandHipc(53)]
         // OpenReadOnlySaveDataFileSystem(u8 save_data_space_id, nn::fssrv::sf::SaveStruct save_struct) -> object<nn::fssrv::sf::IFileSystem>
         public ResultCode OpenReadOnlySaveDataFileSystem(ServiceCtx context)
         {
-            ResultCode result = FileSystemProxyHelper.LoadSaveDataFileSystem(context, true, out FileSystemProxy.IFileSystem fileSystem);
+            SaveDataSpaceId spaceId = (SaveDataSpaceId)context.RequestData.ReadInt64();
+            SaveDataAttribute attribute = context.RequestData.ReadStruct<SaveDataAttribute>();
 
-            if (result == ResultCode.Success)
+            // TODO: There's currently no program registry for FS to reference.
+            // Workaround that by setting the application ID if it's not already set
+            if (attribute.ProgramId == ProgramId.InvalidId)
             {
-                MakeObject(context, fileSystem);
+                attribute.ProgramId = new ProgramId(context.Device.Application.TitleId);
             }
 
-            return result;
+            Result result = _baseFileSystemProxy.OpenReadOnlySaveDataFileSystem(out LibHac.Fs.Fsa.IFileSystem fileSystem, spaceId, ref attribute);
+
+            if (result.IsSuccess())
+            {
+                MakeObject(context, new FileSystemProxy.IFileSystem(fileSystem));
+            }
+
+            return (ResultCode)result.Value;
         }
 
-        [Command(200)]
+        [CommandHipc(60)]
+        public ResultCode OpenSaveDataInfoReader(ServiceCtx context)
+        {
+            Result result = _baseFileSystemProxy.OpenSaveDataInfoReader(out ReferenceCountedDisposable<LibHac.FsSrv.ISaveDataInfoReader> infoReader);
+
+            if (result.IsSuccess())
+            {
+                MakeObject(context, new ISaveDataInfoReader(infoReader));
+            }
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(61)]
+        public ResultCode OpenSaveDataInfoReaderBySaveDataSpaceId(ServiceCtx context)
+        {
+            SaveDataSpaceId spaceId = (SaveDataSpaceId)context.RequestData.ReadByte();
+
+            Result result = _baseFileSystemProxy.OpenSaveDataInfoReaderBySaveDataSpaceId(out ReferenceCountedDisposable<LibHac.FsSrv.ISaveDataInfoReader> infoReader, spaceId);
+
+            if (result.IsSuccess())
+            {
+                MakeObject(context, new ISaveDataInfoReader(infoReader));
+            }
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(62)]
+        public ResultCode OpenSaveDataInfoReaderOnlyCacheStorage(ServiceCtx context)
+        {
+            SaveDataFilter filter = new SaveDataFilter();
+            filter.SetSaveDataType(SaveDataType.Cache);
+            filter.SetProgramId(new ProgramId(context.Process.TitleId));
+
+            // FS would query the User and SdCache space IDs to find where the existing cache is (if any).
+            // We always have the SD card inserted, so we can always use SdCache for now.
+            Result result = _baseFileSystemProxy.OpenSaveDataInfoReaderBySaveDataSpaceId(
+                out ReferenceCountedDisposable<LibHac.FsSrv.ISaveDataInfoReader> infoReader, SaveDataSpaceId.SdCache);
+
+            if (result.IsSuccess())
+            {
+                MakeObject(context, new ISaveDataInfoReader(infoReader));
+            }
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(67)]
+        public ResultCode FindSaveDataWithFilter(ServiceCtx context)
+        {
+            SaveDataSpaceId spaceId = (SaveDataSpaceId)context.RequestData.ReadInt64();
+            SaveDataFilter filter = context.RequestData.ReadStruct<SaveDataFilter>();
+
+            ulong bufferPosition = context.Request.ReceiveBuff[0].Position;
+            ulong bufferLen = context.Request.ReceiveBuff[0].Size;
+
+            byte[] infoBuffer = new byte[bufferLen];
+
+            Result result = _baseFileSystemProxy.FindSaveDataWithFilter(out long count, infoBuffer, spaceId, ref filter);
+
+            context.Memory.Write(bufferPosition, infoBuffer);
+            context.ResponseData.Write(count);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(68)]
+        public ResultCode OpenSaveDataInfoReaderWithFilter(ServiceCtx context)
+        {
+            SaveDataSpaceId spaceId = (SaveDataSpaceId)context.RequestData.ReadInt64();
+            SaveDataFilter filter = context.RequestData.ReadStruct<SaveDataFilter>();
+
+            Result result = _baseFileSystemProxy.OpenSaveDataInfoReaderWithFilter(
+                out ReferenceCountedDisposable<LibHac.FsSrv.ISaveDataInfoReader> infoReader, spaceId, ref filter);
+
+            if (result.IsSuccess())
+            {
+                MakeObject(context, new ISaveDataInfoReader(infoReader));
+            }
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(71)]
+        public ResultCode ReadSaveDataFileSystemExtraDataWithMaskBySaveDataAttribute(ServiceCtx context)
+        {
+            Logger.Stub?.PrintStub(LogClass.ServiceFs);
+
+            MemoryHelper.FillWithZeros(context.Memory, context.Request.ReceiveBuff[0].Position, (int)context.Request.ReceiveBuff[0].Size);
+
+            return ResultCode.Success;
+        }
+
+        [CommandHipc(200)]
         // OpenDataStorageByCurrentProcess() -> object<nn::fssrv::sf::IStorage> dataStorage
         public ResultCode OpenDataStorageByCurrentProcess(ServiceCtx context)
         {
@@ -200,25 +386,34 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return 0;
         }
 
-        [Command(202)]
+        [CommandHipc(202)]
         // OpenDataStorageByDataId(u8 storageId, nn::ApplicationId tid) -> object<nn::fssrv::sf::IStorage> dataStorage
         public ResultCode OpenDataStorageByDataId(ServiceCtx context)
         {
             StorageId storageId = (StorageId)context.RequestData.ReadByte();
-            byte[]    padding   = context.RequestData.ReadBytes(7);
-            long      titleId   = context.RequestData.ReadInt64();
+            byte[] padding = context.RequestData.ReadBytes(7);
+            ulong titleId = context.RequestData.ReadUInt64();
+
+            // We do a mitm here to find if the request is for an AOC.
+            // This is because AOC can be distributed over multiple containers in the emulator.
+            if (context.Device.System.ContentManager.GetAocDataStorage((ulong)titleId, out LibHac.Fs.IStorage aocStorage, context.Device.Configuration.FsIntegrityCheckLevel))
+            {
+                Logger.Info?.Print(LogClass.Loader, $"Opened AddOnContent Data TitleID={titleId:X16}");
+
+                MakeObject(context, new FileSystemProxy.IStorage(context.Device.FileSystem.ModLoader.ApplyRomFsMods((ulong)titleId, aocStorage)));
+
+                return ResultCode.Success;
+            }
 
             NcaContentType contentType = NcaContentType.Data;
 
-            StorageId installedStorage =
-                context.Device.System.ContentManager.GetInstalledStorage(titleId, contentType, storageId);
+            StorageId installedStorage = context.Device.System.ContentManager.GetInstalledStorage(titleId, contentType, storageId);
 
             if (installedStorage == StorageId.None)
             {
                 contentType = NcaContentType.PublicData;
 
-                installedStorage =
-                    context.Device.System.ContentManager.GetInstalledStorage(titleId, contentType, storageId);
+                installedStorage = context.Device.System.ContentManager.GetInstalledStorage(titleId, contentType, storageId);
             }
 
             if (installedStorage != StorageId.None)
@@ -234,8 +429,8 @@ namespace Ryujinx.HLE.HOS.Services.Fs
                     {
                         try
                         {
-                            LibHac.Fs.IStorage ncaStorage   = new LocalStorage(ncaPath, FileAccess.Read, FileMode.Open);
-                            Nca                nca          = new Nca(context.Device.System.KeySet, ncaStorage);
+                            LibHac.Fs.IStorage ncaStorage = new LocalStorage(ncaPath, FileAccess.Read, FileMode.Open);
+                            Nca nca = new Nca(context.Device.System.KeySet, ncaStorage);
                             LibHac.Fs.IStorage romfsStorage = nca.OpenStorage(NcaSectionType.Data, context.Device.System.FsIntegrityCheckLevel);
 
                             MakeObject(context, new FileSystemProxy.IStorage(romfsStorage));
@@ -248,12 +443,12 @@ namespace Ryujinx.HLE.HOS.Services.Fs
                         return ResultCode.Success;
                     }
                     else
-                    { 
+                    {
                         throw new FileNotFoundException($"No Nca found in Path `{ncaPath}`.");
                     }
                 }
                 else
-                { 
+                {
                     throw new DirectoryNotFoundException($"Path for title id {titleId:x16} on Storage {storageId} was not found in Path {installPath}.");
                 }
             }
@@ -261,7 +456,7 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             throw new FileNotFoundException($"System archive with titleid {titleId:x16} was not found on Storage {storageId}. Found in {installedStorage}.");
         }
 
-        [Command(203)]
+        [CommandHipc(203)]
         // OpenPatchDataStorageByCurrentProcess() -> object<nn::fssrv::sf::IStorage>
         public ResultCode OpenPatchDataStorageByCurrentProcess(ServiceCtx context)
         {
@@ -270,11 +465,11 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return ResultCode.Success;
         }
 
-        [Command(400)]
+        [CommandHipc(400)]
         // OpenDataStorageByCurrentProcess() -> object<nn::fssrv::sf::IStorage> dataStorage
         public ResultCode OpenDeviceOperator(ServiceCtx context)
         {
-            Result result = _baseFileSystemProxy.OpenDeviceOperator(out LibHac.FsService.IDeviceOperator deviceOperator);
+            Result result = _baseFileSystemProxy.OpenDeviceOperator(out LibHac.FsSrv.IDeviceOperator deviceOperator);
 
             if (result.IsSuccess())
             {
@@ -284,7 +479,38 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return (ResultCode)result.Value;
         }
 
-        [Command(1005)]
+        [CommandHipc(630)]
+        // SetSdCardAccessibility(u8)
+        public ResultCode SetSdCardAccessibility(ServiceCtx context)
+        {
+            bool isAccessible = context.RequestData.ReadBoolean();
+
+            return (ResultCode)_baseFileSystemProxy.SetSdCardAccessibility(isAccessible).Value;
+        }
+
+        [CommandHipc(631)]
+        // IsSdCardAccessible() -> u8
+        public ResultCode IsSdCardAccessible(ServiceCtx context)
+        {
+            Result result = _baseFileSystemProxy.IsSdCardAccessible(out bool isAccessible);
+
+            context.ResponseData.Write(isAccessible);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(1004)]
+        // SetGlobalAccessLogMode(u32 mode)
+        public ResultCode SetGlobalAccessLogMode(ServiceCtx context)
+        {
+            int mode = context.RequestData.ReadInt32();
+
+            context.Device.System.GlobalAccessLogMode = mode;
+
+            return ResultCode.Success;
+        }
+
+        [CommandHipc(1005)]
         // GetGlobalAccessLogMode() -> u32 logMode
         public ResultCode GetGlobalAccessLogMode(ServiceCtx context)
         {
@@ -295,16 +521,42 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return ResultCode.Success;
         }
 
-        [Command(1006)]
+        [CommandHipc(1006)]
         // OutputAccessLogToSdCard(buffer<bytes, 5> log_text)
         public ResultCode OutputAccessLogToSdCard(ServiceCtx context)
         {
             string message = ReadUtf8StringSend(context);
 
             // FS ends each line with a newline. Remove it because Ryujinx logging adds its own newline
-            Logger.PrintAccessLog(LogClass.ServiceFs, message.TrimEnd('\n'));
+            Logger.AccessLog?.PrintMsg(LogClass.ServiceFs, message.TrimEnd('\n'));
 
             return ResultCode.Success;
+        }
+
+        [CommandHipc(1011)]
+        public ResultCode GetProgramIndexForAccessLog(ServiceCtx context)
+        {
+            int programIndex = 0;
+            int programCount = 1;
+
+            context.ResponseData.Write(programIndex);
+            context.ResponseData.Write(programCount);
+
+            return ResultCode.Success;
+        }
+
+        [CommandHipc(1200)] // 6.0.0+
+        // OpenMultiCommitManager() -> object<nn::fssrv::sf::IMultiCommitManager>
+        public ResultCode OpenMultiCommitManager(ServiceCtx context)
+        {
+            Result result = _baseFileSystemProxy.OpenMultiCommitManager(out LibHac.FsSrv.IMultiCommitManager commitManager);
+
+            if (result.IsSuccess())
+            {
+                MakeObject(context, new IMultiCommitManager(commitManager));
+            }
+
+            return (ResultCode)result.Value;
         }
     }
 }

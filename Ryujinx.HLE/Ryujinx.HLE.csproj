@@ -1,30 +1,29 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
-    <RuntimeIdentifiers>win-x64;osx-x64;linux-x64</RuntimeIdentifiers>
-    <Configurations>Debug;Release;Profile Debug;Profile Release</Configurations>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <TargetFramework>net5.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile Debug|AnyCPU'">
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>TRACE;USE_PROFILING</DefineConstants>
-    <Optimize>false</Optimize>
-  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ryujinx.Audio\Ryujinx.Audio.csproj" />
+    <ProjectReference Include="..\Ryujinx.Common\Ryujinx.Common.csproj" />
+    <ProjectReference Include="..\Ryujinx.Cpu\Ryujinx.Cpu.csproj" />
+    <ProjectReference Include="..\Ryujinx.Graphics.Host1x\Ryujinx.Graphics.Host1x.csproj" />
+    <ProjectReference Include="..\Ryujinx.Graphics.Nvdec\Ryujinx.Graphics.Nvdec.csproj" />
+    <ProjectReference Include="..\Ryujinx.Graphics.Vic\Ryujinx.Graphics.Vic.csproj" />
+    <ProjectReference Include="..\Ryujinx.Memory\Ryujinx.Memory.csproj" />
+    <ProjectReference Include="..\ARMeilleure\ARMeilleure.csproj" />
+    <ProjectReference Include="..\Ryujinx.Graphics.Gpu\Ryujinx.Graphics.Gpu.csproj" />
+    <ProjectReference Include="..\Ryujinx.Graphics.GAL\Ryujinx.Graphics.GAL.csproj" />
+  </ItemGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile Release|AnyCPU'">
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>TRACE;USE_PROFILING</DefineConstants>
-    <Optimize>true</Optimize>
-  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Concentus" Version="1.1.7" />
+    <PackageReference Include="LibHac" Version="0.12.0" />
+    <PackageReference Include="MsgPack.Cli" Version="1.0.1" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta11" />
+  </ItemGroup>
 
   <!-- Due to Concentus. -->
   <PropertyGroup>
@@ -33,26 +32,12 @@
 
   <ItemGroup>
     <None Remove="Homebrew.npdm" />
-    <None Remove="RyujinxProfileImage.jpg" />
+    <None Remove="HOS\Services\Account\Acc\DefaultUserImage.jpg" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Homebrew.npdm" />
-    <EmbeddedResource Include="RyujinxProfileImage.jpg" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Ryujinx.Audio\Ryujinx.Audio.csproj" />
-    <ProjectReference Include="..\Ryujinx.Common\Ryujinx.Common.csproj" />
-    <ProjectReference Include="..\Ryujinx.Graphics\Ryujinx.Graphics.csproj" />
-    <ProjectReference Include="..\Ryujinx.Profiler\Ryujinx.Profiler.csproj" />
-    <ProjectReference Include="..\ARMeilleure\ARMeilleure.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="Concentus" Version="1.1.7" />
-    <PackageReference Include="LibHac" Version="0.6.0" />
-    <PackageReference Include="TimeZoneConverter.Posix" Version="2.1.0" />
+    <EmbeddedResource Include="HOS\Services\Account\Acc\DefaultUserImage.jpg" />
   </ItemGroup>
 
 </Project>

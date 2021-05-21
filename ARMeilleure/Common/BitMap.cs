@@ -1,20 +1,33 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Numerics;
 
 namespace ARMeilleure.Common
 {
-    class BitMap : IEnumerable<int>
+    class BitMap : IEnumerator<int>, IEnumerable<int>
     {
-        private const int IntSize = 32;
+        private const int IntSize = 64;
         private const int IntMask = IntSize - 1;
 
-        private List<int> _masks;
+        private readonly List<long> _masks;
+
+        private int _enumIndex;
+        private long _enumMask;
+        private int _enumBit;
+
+        public int Current => _enumIndex * IntSize + _enumBit;
+        object IEnumerator.Current => Current;
+
+        public BitMap()
+        {
+            _masks = new List<long>(0);
+        }
 
         public BitMap(int initialCapacity)
         {
             int count = (initialCapacity + IntMask) / IntSize;
 
-            _masks = new List<int>(count);
+            _masks = new List<long>(count);
 
             while (count-- > 0)
             {
@@ -22,14 +35,33 @@ namespace ARMeilleure.Common
             }
         }
 
+        public BitMap Reset(int initialCapacity)
+        {
+            int count = (initialCapacity + IntMask) / IntSize;
+
+            if (count > _masks.Capacity)
+            {
+                _masks.Capacity = count;
+            }
+
+            _masks.Clear();
+
+            while (count-- > 0)
+            {
+                _masks.Add(0);
+            }
+
+            return this;
+        }
+
         public bool Set(int bit)
         {
             EnsureCapacity(bit + 1);
 
             int wordIndex = bit / IntSize;
-            int wordBit   = bit & IntMask;
+            int wordBit = bit & IntMask;
 
-            int wordMask = 1 << wordBit;
+            long wordMask = 1L << wordBit;
 
             if ((_masks[wordIndex] & wordMask) != 0)
             {
@@ -46,9 +78,9 @@ namespace ARMeilleure.Common
             EnsureCapacity(bit + 1);
 
             int wordIndex = bit / IntSize;
-            int wordBit   = bit & IntMask;
+            int wordBit = bit & IntMask;
 
-            int wordMask = 1 << wordBit;
+            long wordMask = 1L << wordBit;
 
             _masks[wordIndex] &= ~wordMask;
         }
@@ -58,9 +90,24 @@ namespace ARMeilleure.Common
             EnsureCapacity(bit + 1);
 
             int wordIndex = bit / IntSize;
-            int wordBit   = bit & IntMask;
+            int wordBit = bit & IntMask;
 
-            return (_masks[wordIndex] & (1 << wordBit)) != 0;
+            return (_masks[wordIndex] & (1L << wordBit)) != 0;
+        }
+
+        public int FindFirstUnset()
+        {
+            for (int index = 0; index < _masks.Count; index++)
+            {
+                long mask = _masks[index];
+
+                if (mask != -1L)
+                {
+                    return BitOperations.TrailingZeroCount(~mask) + index * IntSize;
+                }
+            }
+
+            return _masks.Count * IntSize;
         }
 
         public bool Set(BitMap map)
@@ -71,7 +118,7 @@ namespace ARMeilleure.Common
 
             for (int index = 0; index < _masks.Count; index++)
             {
-                int newValue = _masks[index] | map._masks[index];
+                long newValue = _masks[index] | map._masks[index];
 
                 if (_masks[index] != newValue)
                 {
@@ -92,7 +139,7 @@ namespace ARMeilleure.Common
 
             for (int index = 0; index < _masks.Count; index++)
             {
-                int newValue = _masks[index] & ~map._masks[index];
+                long newValue = _masks[index] & ~map._masks[index];
 
                 if (_masks[index] != newValue)
                 {
@@ -105,6 +152,10 @@ namespace ARMeilleure.Common
             return modified;
         }
 
+        #region IEnumerable<long> Methods
+
+        // Note: The bit enumerator is embedded in this class to avoid creating garbage when enumerating.
+
         private void EnsureCapacity(int size)
         {
             while (_masks.Count * IntSize < size)
@@ -113,26 +164,44 @@ namespace ARMeilleure.Common
             }
         }
 
-        public IEnumerator<int> GetEnumerator()
-        {
-            for (int index = 0; index < _masks.Count; index++)
-            {
-                int mask = _masks[index];
-
-                while (mask != 0)
-                {
-                    int bit = BitUtils.LowestBitSet(mask);
-
-                    mask &= ~(1 << bit);
-
-                    yield return index * IntSize + bit;
-                }
-            }
-        }
-
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
         }
+
+        public IEnumerator<int> GetEnumerator()
+        {
+            Reset();
+            return this;
+        }
+
+        public bool MoveNext()
+        {
+            if (_enumMask != 0)
+            {
+                _enumMask &= ~(1L << _enumBit);
+            }
+            while (_enumMask == 0)
+            {
+                if (++_enumIndex >= _masks.Count)
+                {
+                    return false;
+                }
+                _enumMask = _masks[_enumIndex];
+            }
+            _enumBit = BitOperations.TrailingZeroCount(_enumMask);
+            return true;
+        }
+
+        public void Reset()
+        {
+            _enumIndex = -1;
+            _enumMask = 0;
+            _enumBit = 0;
+        }
+
+        public void Dispose() { }
+
+        #endregion
     }
 }

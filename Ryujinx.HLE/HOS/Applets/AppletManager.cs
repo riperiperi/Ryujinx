@@ -1,4 +1,6 @@
-﻿using Ryujinx.HLE.HOS.Services.Am.AppletAE;
+﻿using Ryujinx.HLE.HOS.Applets.Browser;
+using Ryujinx.HLE.HOS.Applets.Error;
+using Ryujinx.HLE.HOS.Services.Am.AppletAE;
 using System;
 using System.Collections.Generic;
 
@@ -12,8 +14,13 @@ namespace Ryujinx.HLE.HOS.Applets
         {
             _appletMapping = new Dictionary<AppletId, Type>
             {
+                { AppletId.Error,            typeof(ErrorApplet)            },
                 { AppletId.PlayerSelect,     typeof(PlayerSelectApplet)     },
-                { AppletId.SoftwareKeyboard, typeof(SoftwareKeyboardApplet) }
+                { AppletId.Controller,       typeof(ControllerApplet)       },
+                { AppletId.SoftwareKeyboard, typeof(SoftwareKeyboardApplet) },
+                { AppletId.LibAppletWeb,     typeof(BrowserApplet)          },
+                { AppletId.LibAppletShop,    typeof(BrowserApplet)          },
+                { AppletId.LibAppletOff,     typeof(BrowserApplet)          }
             };
         }
 

@@ -11,7 +11,9 @@ namespace ARMeilleure.Decoders
         public Block Next   { get; set; }
         public Block Branch { get; set; }
 
-        public List<OpCode> OpCodes { get; private set; }
+        public bool Exit { get; set; }
+
+        public List<OpCode> OpCodes { get; }
 
         public Block()
         {
@@ -27,7 +29,7 @@ namespace ARMeilleure.Decoders
         {
             int splitIndex = BinarySearch(OpCodes, rightBlock.Address);
 
-            if ((ulong)OpCodes[splitIndex].Address < rightBlock.Address)
+            if (OpCodes[splitIndex].Address < rightBlock.Address)
             {
                 splitIndex++;
             }

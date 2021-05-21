@@ -4,24 +4,31 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
 {
     class IWindowController : IpcService
     {
-        public IWindowController() { }
+        private readonly long _pid;
 
-        [Command(1)]
+        public IWindowController(long pid)
+        {
+            _pid = pid;
+        }
+
+        [CommandHipc(1)]
         // GetAppletResourceUserId() -> nn::applet::AppletResourceUserId
         public ResultCode GetAppletResourceUserId(ServiceCtx context)
         {
-            Logger.PrintStub(LogClass.ServiceAm);
+            Logger.Stub?.PrintStub(LogClass.ServiceAm);
 
-            context.ResponseData.Write(0L);
+            long appletResourceUserId = context.Device.System.AppletState.AppletResourceUserIds.Add(_pid);
+
+            context.ResponseData.Write(appletResourceUserId);
 
             return ResultCode.Success;
         }
 
-        [Command(10)]
+        [CommandHipc(10)]
         // AcquireForegroundRights()
         public ResultCode AcquireForegroundRights(ServiceCtx context)
         {
-            Logger.PrintStub(LogClass.ServiceAm);
+            Logger.Stub?.PrintStub(LogClass.ServiceAm);
 
             return ResultCode.Success;
         }

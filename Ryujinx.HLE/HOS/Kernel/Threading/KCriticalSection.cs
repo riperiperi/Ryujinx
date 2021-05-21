@@ -1,26 +1,24 @@
-using ARMeilleure;
 using System.Threading;
 
 namespace Ryujinx.HLE.HOS.Kernel.Threading
 {
     class KCriticalSection
     {
-        private Horizon _system;
-
-        public object LockObj { get; private set; }
-
+        private readonly KernelContext _context;
+        private readonly object _lock;
         private int _recursionCount;
 
-        public KCriticalSection(Horizon system)
-        {
-            _system = system;
+        public object Lock => _lock;
 
-            LockObj = new object();
+        public KCriticalSection(KernelContext context)
+        {
+            _context = context;
+            _lock = new object();
         }
 
         public void Enter()
         {
-            Monitor.Enter(LockObj);
+            Monitor.Enter(_lock);
 
             _recursionCount++;
         }
@@ -32,61 +30,34 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
                 return;
             }
 
-            bool doContextSwitch = false;
-
             if (--_recursionCount == 0)
             {
-                if (_system.Scheduler.ThreadReselectionRequested)
+                ulong scheduledCoresMask = KScheduler.SelectThreads(_context);
+
+                Monitor.Exit(_lock);
+
+                KThread currentThread = KernelStatic.GetCurrentThread();
+                bool isCurrentThreadSchedulable = currentThread != null && currentThread.IsSchedulable;
+                if (isCurrentThreadSchedulable)
                 {
-                    _system.Scheduler.SelectThreads();
-                }
-
-                Monitor.Exit(LockObj);
-
-                if (_system.Scheduler.MultiCoreScheduling)
-                {
-                    lock (_system.Scheduler.CoreContexts)
-                    {
-                        for (int core = 0; core < KScheduler.CpuCoresCount; core++)
-                        {
-                            KCoreContext coreContext = _system.Scheduler.CoreContexts[core];
-
-                            if (coreContext.ContextSwitchNeeded)
-                            {
-                                KThread currentThread = coreContext.CurrentThread;
-
-                                if (currentThread == null)
-                                {
-                                    // Nothing is running, we can perform the context switch immediately.
-                                    coreContext.ContextSwitch();
-                                }
-                                else if (currentThread.IsCurrentHostThread())
-                                {
-                                    // Thread running on the current core, context switch will block.
-                                    doContextSwitch = true;
-                                }
-                                else
-                                {
-                                    // Thread running on another core, request a interrupt.
-                                    currentThread.Context.RequestInterrupt();
-                                }
-                            }
-                        }
-                    }
+                    KScheduler.EnableScheduling(_context, scheduledCoresMask);
                 }
                 else
                 {
-                    doContextSwitch = true;
+                    KScheduler.EnableSchedulingFromForeignThread(_context, scheduledCoresMask);
+
+                    // If the thread exists but is not schedulable, we still want to suspend
+                    // it if it's not runnable. That allows the kernel to still block HLE threads
+                    // even if they are not scheduled on guest cores.
+                    if (currentThread != null && !currentThread.IsSchedulable && currentThread.Context.Running)
+                    {
+                        currentThread.SchedulerWaitEvent.WaitOne();
+                    }
                 }
             }
             else
             {
-                Monitor.Exit(LockObj);
-            }
-
-            if (doContextSwitch)
-            {
-                _system.Scheduler.ContextSwitch();
+                Monitor.Exit(_lock);
             }
         }
     }

@@ -7,7 +7,7 @@ namespace Ryujinx.HLE.HOS.Services.Audio
     {
         public IHardwareOpusDecoderManager(ServiceCtx context) { }
 
-        [Command(0)]
+        [CommandHipc(0)]
         // Initialize(bytes<8, 4>, u32, handle<copy>) -> object<nn::codec::detail::IHardwareOpusDecoder>
         public ResultCode Initialize(ServiceCtx context)
         {
@@ -16,10 +16,13 @@ namespace Ryujinx.HLE.HOS.Services.Audio
 
             MakeObject(context, new IHardwareOpusDecoder(sampleRate, channelsCount));
 
+            // Close transfer memory immediately as we don't use it.
+            context.Device.System.KernelContext.Syscall.CloseHandle(context.Request.HandleDesc.ToCopy[0]);
+
             return ResultCode.Success;
         }
 
-        [Command(1)]
+        [CommandHipc(1)]
         // GetWorkBufferSize(bytes<8, 4>) -> u32
         public ResultCode GetWorkBufferSize(ServiceCtx context)
         {

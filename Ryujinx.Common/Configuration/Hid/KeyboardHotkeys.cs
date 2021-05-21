@@ -1,7 +1,7 @@
-﻿namespace Ryujinx.Configuration.Hid
+﻿namespace Ryujinx.Common.Configuration.Hid
 {
     public struct KeyboardHotkeys
     {
-        public Key ToggleVsync;
+        public Key ToggleVsync { get; set; }
     }
 }

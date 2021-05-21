@@ -11,12 +11,12 @@ namespace Ryujinx.HLE.Loaders.Npdm
     {
         private const int MetaMagic = 'M' << 0 | 'E' << 8 | 'T' << 16 | 'A' << 24;
 
-        public byte   MmuFlags            { get; private set; }
-        public bool   Is64Bits            { get; private set; }
+        public byte   ProcessFlags        { get; private set; }
+        public bool   Is64Bit             { get; private set; }
         public byte   MainThreadPriority  { get; private set; }
         public byte   DefaultCpuId        { get; private set; }
         public int    PersonalMmHeapSize  { get; private set; }
-        public int    ProcessCategory     { get; private set; }
+        public int    Version             { get; private set; }
         public int    MainThreadStackSize { get; private set; }
         public string TitleName           { get;         set; }
         public byte[] ProductCode         { get; private set; }
@@ -35,9 +35,9 @@ namespace Ryujinx.HLE.Loaders.Npdm
 
             reader.ReadInt64();
 
-            MmuFlags = reader.ReadByte();
+            ProcessFlags = reader.ReadByte();
 
-            Is64Bits = (MmuFlags & 1) != 0;
+            Is64Bit = (ProcessFlags & 1) != 0;
 
             reader.ReadByte();
 
@@ -48,7 +48,7 @@ namespace Ryujinx.HLE.Loaders.Npdm
 
             PersonalMmHeapSize = reader.ReadInt32();
 
-            ProcessCategory = reader.ReadInt32();
+            Version = reader.ReadInt32();
 
             MainThreadStackSize = reader.ReadInt32();
 

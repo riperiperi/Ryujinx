@@ -1,23 +1,27 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace ARMeilleure.IntermediateRepresentation
 {
     class Operand
     {
-        public OperandKind Kind { get; }
-
-        public OperandType Type { get; }
+        public OperandKind Kind { get; private set; }
+        public OperandType Type { get; private set; }
 
         public ulong Value { get; private set; }
 
-        public LinkedList<Node> Assignments { get; }
-        public LinkedList<Node> Uses        { get; }
+        public bool Relocatable { get; private set; }
+        public int? PtcIndex    { get; private set; }
 
-        private Operand()
+        public List<Node> Assignments { get; }
+        public List<Node> Uses        { get; }
+
+        public Operand()
         {
-            Assignments = new LinkedList<Node>();
-            Uses        = new LinkedList<Node>();
+            Assignments = new List<Node>();
+            Uses        = new List<Node>();
         }
 
         public Operand(OperandKind kind, OperandType type = OperandType.None) : this()
@@ -26,47 +30,73 @@ namespace ARMeilleure.IntermediateRepresentation
             Type = type;
         }
 
-        public Operand(int value) : this(OperandKind.Constant, OperandType.I32)
+        public Operand With(
+            OperandKind kind,
+            OperandType type = OperandType.None,
+            ulong value = 0,
+            bool relocatable = false,
+            int? index = null)
         {
-            Value = (uint)value;
-        }
-
-        public Operand(uint value) : this(OperandKind.Constant, OperandType.I32)
-        {
-            Value = (uint)value;
-        }
-
-        public Operand(long value) : this(OperandKind.Constant, OperandType.I64)
-        {
-            Value = (ulong)value;
-        }
-
-        public Operand(ulong value) : this(OperandKind.Constant, OperandType.I64)
-        {
-            Value = value;
-        }
-
-        public Operand(float value) : this(OperandKind.Constant, OperandType.FP32)
-        {
-            Value = (ulong)BitConverter.SingleToInt32Bits(value);
-        }
-
-        public Operand(double value) : this(OperandKind.Constant, OperandType.FP64)
-        {
-            Value = (ulong)BitConverter.DoubleToInt64Bits(value);
-        }
-
-        public Operand(int index, RegisterType regType, OperandType type) : this()
-        {
-            Kind = OperandKind.Register;
+            Kind = kind;
             Type = type;
 
-            Value = (ulong)((int)regType << 24 | index);
+            Value = value;
+
+            Relocatable = relocatable;
+            PtcIndex    = index;
+
+            Assignments.Clear();
+            Uses.Clear();
+
+            return this;
         }
 
+        public Operand With(int value)
+        {
+            return With(OperandKind.Constant, OperandType.I32, (uint)value);
+        }
+
+        public Operand With(uint value)
+        {
+            return With(OperandKind.Constant, OperandType.I32, value);
+        }
+
+        public Operand With(long value, bool relocatable = false, int? index = null)
+        {
+            return With(OperandKind.Constant, OperandType.I64, (ulong)value, relocatable, index);
+        }
+
+        public Operand With(ulong value)
+        {
+            return With(OperandKind.Constant, OperandType.I64, value);
+        }
+
+        public Operand With(float value)
+        {
+            return With(OperandKind.Constant, OperandType.FP32, (ulong)BitConverter.SingleToInt32Bits(value));
+        }
+
+        public Operand With(double value)
+        {
+            return With(OperandKind.Constant, OperandType.FP64, (ulong)BitConverter.DoubleToInt64Bits(value));
+        }
+
+        public Operand With(int index, RegisterType regType, OperandType type)
+        {
+            return With(OperandKind.Register, type, (ulong)((int)regType << 24 | index));
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public Register GetRegister()
         {
             return new Register((int)Value & 0xffffff, (RegisterType)(Value >> 24));
+        }
+
+        public int GetLocalNumber()
+        {
+            Debug.Assert(Kind == OperandKind.LocalVariable);
+
+            return (int)Value;
         }
 
         public byte AsByte()

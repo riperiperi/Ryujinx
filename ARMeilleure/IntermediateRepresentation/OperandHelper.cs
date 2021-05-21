@@ -1,5 +1,5 @@
-using ARMeilleure.State;
-using System;
+using ARMeilleure.Common;
+using System.Runtime.CompilerServices;
 
 namespace ARMeilleure.IntermediateRepresentation
 {
@@ -7,62 +7,107 @@ namespace ARMeilleure.IntermediateRepresentation
     {
         public static Operand Const(OperandType type, long value)
         {
-            return type == OperandType.I32 ? new Operand((int)value) : new Operand(value);
+            return type == OperandType.I32 ? Operand().With((int)value) : Operand().With(value);
         }
 
         public static Operand Const(bool value)
         {
-            return new Operand(value ? 1 : 0);
+            return Operand().With(value ? 1 : 0);
         }
 
         public static Operand Const(int value)
         {
-            return new Operand(value);
+            return Operand().With(value);
         }
 
         public static Operand Const(uint value)
         {
-            return new Operand(value);
+            return Operand().With(value);
         }
 
-        public static Operand Const(long value)
+        public static Operand Const(long value, bool relocatable = false, int? index = null)
         {
-            return new Operand(value);
+            return Operand().With(value, relocatable, index);
         }
 
         public static Operand Const(ulong value)
         {
-            return new Operand(value);
+            return Operand().With(value);
+        }
+
+        public static unsafe Operand Const<T>(ref T reference, int? index = null)
+        {
+            return Operand().With((long)Unsafe.AsPointer(ref reference), index != null, index);
         }
 
         public static Operand ConstF(float value)
         {
-            return new Operand(value);
+            return Operand().With(value);
         }
 
         public static Operand ConstF(double value)
         {
-            return new Operand(value);
+            return Operand().With(value);
         }
 
         public static Operand Label()
         {
-            return new Operand(OperandKind.Label);
+            return Operand().With(OperandKind.Label);
         }
 
         public static Operand Local(OperandType type)
         {
-            return new Operand(OperandKind.LocalVariable, type);
+            return Operand().With(OperandKind.LocalVariable, type);
         }
 
         public static Operand Register(int index, RegisterType regType, OperandType type)
         {
-            return new Operand(index, regType, type);
+            return Operand().With(index, regType, type);
         }
 
         public static Operand Undef()
         {
-            return new Operand(OperandKind.Undefined);
+            return Operand().With(OperandKind.Undefined);
         }
+
+        public static MemoryOperand MemoryOp(
+            OperandType type,
+            Operand baseAddress,
+            Operand index = null,
+            Multiplier scale = Multiplier.x1,
+            int displacement = 0)
+        {
+            return MemoryOperand().With(type, baseAddress, index, scale, displacement);
+        }
+
+        #region "ThreadStaticPool"
+        public static void PrepareOperandPool(int groupId = 0)
+        {
+            ThreadStaticPool<Operand>.PreparePool(groupId, ChunkSizeLimit.Large);
+            ThreadStaticPool<MemoryOperand>.PreparePool(groupId, ChunkSizeLimit.Small);
+        }
+
+        private static Operand Operand()
+        {
+            return ThreadStaticPool<Operand>.Instance.Allocate();
+        }
+
+        private static MemoryOperand MemoryOperand()
+        {
+            return ThreadStaticPool<MemoryOperand>.Instance.Allocate();
+        }
+
+        public static void ResetOperandPool(int groupId = 0)
+        {
+            ThreadStaticPool<MemoryOperand>.ResetPool(groupId);
+            ThreadStaticPool<Operand>.ResetPool(groupId);
+        }
+
+        public static void DisposeOperandPools()
+        {
+            ThreadStaticPool<Operand>.DisposePools();
+            ThreadStaticPool<MemoryOperand>.DisposePools();
+        }
+        #endregion
     }
 }

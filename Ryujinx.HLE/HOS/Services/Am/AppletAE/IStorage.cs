@@ -2,14 +2,16 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE
 {
     class IStorage : IpcService
     {
-        public byte[] Data { get; private set; }
+        public bool   IsReadOnly { get; private set; }
+        public byte[] Data       { get; private set; }
 
-        public IStorage(byte[] data)
+        public IStorage(byte[] data, bool isReadOnly = false)
         {
-            Data = data;
+            IsReadOnly = isReadOnly;
+            Data       = data;
         }
 
-        [Command(0)]
+        [CommandHipc(0)]
         // Open() -> object<nn::am::service::IStorageAccessor>
         public ResultCode Open(ServiceCtx context)
         {

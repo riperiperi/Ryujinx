@@ -11,7 +11,7 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE
             _storage = storage;
         }
 
-        [Command(0)]
+        [CommandHipc(0)]
         // GetSize() -> u64
         public ResultCode GetSize(ServiceCtx context)
         {
@@ -20,31 +20,38 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE
             return ResultCode.Success;
         }
 
-        [Command(10)]
+        [CommandHipc(10)]
         // Write(u64, buffer<bytes, 0x21>)
         public ResultCode Write(ServiceCtx context)
         {
-            long writePosition = context.RequestData.ReadInt64();
+            if (_storage.IsReadOnly)
+            {
+                return ResultCode.ObjectInvalid;
+            }
 
-            if (writePosition > _storage.Data.Length)
+            ulong writePosition = context.RequestData.ReadUInt64();
+
+            if (writePosition > (ulong)_storage.Data.Length)
             {
                 return ResultCode.OutOfBounds;
             }
 
-            (long position, long size) = context.Request.GetBufferType0x21();
+            (ulong position, ulong size) = context.Request.GetBufferType0x21();
 
-            size = Math.Min(size, _storage.Data.Length - writePosition);
+            size = Math.Min(size, (ulong)_storage.Data.Length - writePosition);
 
             if (size > 0)
             {
-                long maxSize = _storage.Data.Length - writePosition;
+                ulong maxSize = (ulong)_storage.Data.Length - writePosition;
 
                 if (size > maxSize)
                 {
                     size = maxSize;
                 }
 
-                byte[] data = context.Memory.ReadBytes(position, size);
+                byte[] data = new byte[size];
+
+                context.Memory.Read(position, data);
 
                 Buffer.BlockCopy(data, 0, _storage.Data, (int)writePosition, (int)size);
             }
@@ -52,26 +59,26 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE
             return ResultCode.Success;
         }
 
-        [Command(11)]
+        [CommandHipc(11)]
         // Read(u64) -> buffer<bytes, 0x22>
         public ResultCode Read(ServiceCtx context)
         {
-            long readPosition = context.RequestData.ReadInt64();
+            ulong readPosition = context.RequestData.ReadUInt64();
 
-            if (readPosition > _storage.Data.Length)
+            if (readPosition > (ulong)_storage.Data.Length)
             {
                 return ResultCode.OutOfBounds;
             }
 
-            (long position, long size) = context.Request.GetBufferType0x22();
+            (ulong position, ulong size) = context.Request.GetBufferType0x22();
 
-            size = Math.Min(size, _storage.Data.Length - readPosition);
+            size = Math.Min(size, (ulong)_storage.Data.Length - readPosition);
 
             byte[] data = new byte[size];
 
             Buffer.BlockCopy(_storage.Data, (int)readPosition, data, 0, (int)size);
 
-            context.Memory.WriteBytes(position, data);
+            context.Memory.Write(position, data);
 
             return ResultCode.Success;
         }

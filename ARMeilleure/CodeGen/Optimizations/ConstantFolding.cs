@@ -24,6 +24,12 @@ namespace ARMeilleure.CodeGen.Optimizations
             switch (operation.Instruction)
             {
                 case Instruction.Add:
+                    if (operation.GetSource(0).Relocatable ||
+                        operation.GetSource(1).Relocatable)
+                    {
+                        break;
+                    }
+
                     if (type == OperandType.I32)
                     {
                         EvaluateBinaryI32(operation, (x, y) => x + y);
@@ -75,6 +81,13 @@ namespace ARMeilleure.CodeGen.Optimizations
                     else if (type == OperandType.I64)
                     {
                         EvaluateBinaryI64(operation, (x, y) => x | y);
+                    }
+                    break;
+
+                case Instruction.ConvertI64ToI32:
+                    if (type == OperandType.I32)
+                    {
+                        EvaluateUnaryI32(operation, (x) => x);
                     }
                     break;
 
@@ -199,6 +212,39 @@ namespace ARMeilleure.CodeGen.Optimizations
                     }
                     break;
 
+                case Instruction.ZeroExtend16:
+                    if (type == OperandType.I32)
+                    {
+                        EvaluateUnaryI32(operation, (x) => (ushort)x);
+                    }
+                    else if (type == OperandType.I64)
+                    {
+                        EvaluateUnaryI64(operation, (x) => (ushort)x);
+                    }
+                    break;
+
+                case Instruction.ZeroExtend32:
+                    if (type == OperandType.I32)
+                    {
+                        EvaluateUnaryI32(operation, (x) => x);
+                    }
+                    else if (type == OperandType.I64)
+                    {
+                        EvaluateUnaryI64(operation, (x) => (uint)x);
+                    }
+                    break;
+
+                case Instruction.ZeroExtend8:
+                    if (type == OperandType.I32)
+                    {
+                        EvaluateUnaryI32(operation, (x) => (byte)x);
+                    }
+                    else if (type == OperandType.I64)
+                    {
+                        EvaluateUnaryI64(operation, (x) => (byte)x);
+                    }
+                    break;
+
                 case Instruction.Subtract:
                     if (type == OperandType.I32)
                     {
@@ -216,7 +262,9 @@ namespace ARMeilleure.CodeGen.Optimizations
         {
             for (int index = 0; index < operation.SourcesCount; index++)
             {
-                if (operation.GetSource(index).Kind != OperandKind.Constant)
+                Operand srcOp = operation.GetSource(index);
+
+                if (srcOp.Kind != OperandKind.Constant)
                 {
                     return false;
                 }

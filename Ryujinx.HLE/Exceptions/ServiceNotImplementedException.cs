@@ -14,28 +14,35 @@ namespace Ryujinx.HLE.Exceptions
     [Serializable]
     internal class ServiceNotImplementedException : Exception
     {
+        public IpcService Service { get; }
         public ServiceCtx Context { get; }
         public IpcMessage Request { get; }
 
-        public ServiceNotImplementedException(ServiceCtx context)
-            : this(context, "The service call is not implemented.")
+        private bool _isTipcCommand;
+
+        public ServiceNotImplementedException(IpcService service, ServiceCtx context, bool isTipcCommand)
+            : this(service, context, "The service call is not implemented.", isTipcCommand)
         { }
 
-        public ServiceNotImplementedException(ServiceCtx context, string message)
+        public ServiceNotImplementedException(IpcService service, ServiceCtx context, string message, bool isTipcCommand)
             : base(message)
         {
+            Service = service;
             Context = context;
             Request = context.Request;
+            _isTipcCommand = isTipcCommand;
         }
 
-        public ServiceNotImplementedException(ServiceCtx context, string message, Exception inner)
+        public ServiceNotImplementedException(IpcService service, ServiceCtx context, string message, Exception inner, bool isTipcCommand)
             : base(message, inner)
         {
+            Service = service;
             Context = context;
             Request = context.Request;
+            _isTipcCommand = isTipcCommand;
         }
 
-        protected ServiceNotImplementedException(SerializationInfo info, StreamingContext context) 
+        protected ServiceNotImplementedException(SerializationInfo info, StreamingContext context)
             : base(info, context)
         { }
 
@@ -59,17 +66,16 @@ namespace Ryujinx.HLE.Exceptions
 
             if (callingType != null && callingMethod != null)
             {
-                var ipcService  = Context.Session.Service;
-                var ipcCommands = ipcService.Commands;
+                var ipcCommands = _isTipcCommand ? Service.TipcCommands : Service.HipcCommands;
 
                 // Find the handler for the method called
-                var ipcHandler   = ipcCommands.FirstOrDefault(x => x.Value as MethodBase == callingMethod);
+                var ipcHandler   = ipcCommands.FirstOrDefault(x => x.Value == callingMethod);
                 var ipcCommandId = ipcHandler.Key;
                 var ipcMethod    = ipcHandler.Value;
 
                 if (ipcMethod != null)
                 {
-                    sb.AppendLine($"Service Command: {ipcService.GetType().FullName}: {ipcCommandId} ({ipcMethod.Name})");
+                    sb.AppendLine($"Service Command: {Service.GetType().FullName}: {ipcCommandId} ({ipcMethod.Name})");
                     sb.AppendLine();
                 }
             }
@@ -156,7 +162,7 @@ namespace Ryujinx.HLE.Exceptions
                 var method   = frame.GetMethod();
                 var declType = method.DeclaringType;
 
-                if (typeof(IIpcService).IsAssignableFrom(declType))
+                if (typeof(IpcService).IsAssignableFrom(declType))
                 {
                     return (declType, method);
                 }

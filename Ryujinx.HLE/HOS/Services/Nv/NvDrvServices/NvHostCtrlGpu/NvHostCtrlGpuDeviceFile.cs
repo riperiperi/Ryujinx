@@ -1,8 +1,8 @@
 ﻿using Ryujinx.Common.Logging;
 using Ryujinx.HLE.HOS.Kernel.Common;
-using Ryujinx.HLE.HOS.Kernel.Process;
 using Ryujinx.HLE.HOS.Kernel.Threading;
 using Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostCtrlGpu.Types;
+using Ryujinx.Memory;
 using System;
 using System.Diagnostics;
 
@@ -16,10 +16,10 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostCtrlGpu
         private KEvent _errorEvent;
         private KEvent _unknownEvent;
 
-        public NvHostCtrlGpuDeviceFile(ServiceCtx context) : base(context)
+        public NvHostCtrlGpuDeviceFile(ServiceCtx context, IVirtualMemoryManager memory, long owner) : base(context, owner)
         {
-            _errorEvent   = new KEvent(context.Device.System);
-            _unknownEvent = new KEvent(context.Device.System);
+            _errorEvent   = new KEvent(context.Device.System.KernelContext);
+            _unknownEvent = new KEvent(context.Device.System.KernelContext);
         }
 
         static NvHostCtrlGpuDeviceFile()
@@ -99,7 +99,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostCtrlGpu
 
             if (targetEvent != null)
             {
-                if (Owner.HandleTable.GenerateHandle(targetEvent.ReadableEvent, out eventHandle) != KernelResult.Success)
+                if (Context.Process.HandleTable.GenerateHandle(targetEvent.ReadableEvent, out eventHandle) != KernelResult.Success)
                 {
                     throw new InvalidOperationException("Out of handles!");
                 }
@@ -141,7 +141,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostCtrlGpu
 
         private NvInternalResult ZbcSetTable(ref ZbcSetTableArguments arguments)
         {
-            Logger.PrintStub(LogClass.ServiceNv);
+            Logger.Stub?.PrintStub(LogClass.ServiceNv);
 
             return NvInternalResult.Success;
         }
@@ -214,7 +214,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostCtrlGpu
 
         private NvInternalResult GetActiveSlotMask(ref GetActiveSlotMaskArguments arguments)
         {
-            Logger.PrintStub(LogClass.ServiceNv);
+            Logger.Stub?.PrintStub(LogClass.ServiceNv);
 
             arguments.Slot = 0x07;
             arguments.Mask = 0x01;

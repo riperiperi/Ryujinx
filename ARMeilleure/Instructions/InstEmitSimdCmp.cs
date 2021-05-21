@@ -286,6 +286,54 @@ namespace ARMeilleure.Instructions
             EmitCmtstOp(context, scalar: false);
         }
 
+        public static void Facge_S(ArmEmitterContext context)
+        {
+            if (Optimizations.FastFP && Optimizations.UseAvx)
+            {
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.GreaterThanOrEqual, scalar: true, absolute: true);
+            }
+            else
+            {
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareGE), scalar: true, absolute: true);
+            }
+        }
+
+        public static void Facge_V(ArmEmitterContext context)
+        {
+            if (Optimizations.FastFP && Optimizations.UseAvx)
+            {
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.GreaterThanOrEqual, scalar: false, absolute: true);
+            }
+            else
+            {
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareGE), scalar: false, absolute: true);
+            }
+        }
+
+        public static void Facgt_S(ArmEmitterContext context)
+        {
+            if (Optimizations.FastFP && Optimizations.UseAvx)
+            {
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.GreaterThan, scalar: true, absolute: true);
+            }
+            else
+            {
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareGT), scalar: true, absolute: true);
+            }
+        }
+
+        public static void Facgt_V(ArmEmitterContext context)
+        {
+            if (Optimizations.FastFP && Optimizations.UseAvx)
+            {
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.GreaterThan, scalar: false, absolute: true);
+            }
+            else
+            {
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareGT), scalar: false, absolute: true);
+            }
+        }
+
         public static void Fccmp_S(ArmEmitterContext context)
         {
             EmitFccmpOrFccmpe(context, signalNaNs: false);
@@ -300,11 +348,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseSse2)
             {
-                EmitSse2CmpOpF(context, CmpCondition.Equal, scalar: true);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.Equal, scalar: true);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareEQ, SoftFloat64.FPCompareEQ, scalar: true);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareEQ), scalar: true);
             }
         }
 
@@ -312,11 +360,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseSse2)
             {
-                EmitSse2CmpOpF(context, CmpCondition.Equal, scalar: false);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.Equal, scalar: false);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareEQ, SoftFloat64.FPCompareEQ, scalar: false);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareEQ), scalar: false);
             }
         }
 
@@ -324,11 +372,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseAvx)
             {
-                EmitSse2CmpOpF(context, CmpCondition.GreaterThanOrEqual, scalar: true);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.GreaterThanOrEqual, scalar: true);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareGE, SoftFloat64.FPCompareGE, scalar: true);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareGE), scalar: true);
             }
         }
 
@@ -336,11 +384,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseAvx)
             {
-                EmitSse2CmpOpF(context, CmpCondition.GreaterThanOrEqual, scalar: false);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.GreaterThanOrEqual, scalar: false);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareGE, SoftFloat64.FPCompareGE, scalar: false);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareGE), scalar: false);
             }
         }
 
@@ -348,11 +396,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseAvx)
             {
-                EmitSse2CmpOpF(context, CmpCondition.GreaterThan, scalar: true);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.GreaterThan, scalar: true);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareGT, SoftFloat64.FPCompareGT, scalar: true);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareGT), scalar: true);
             }
         }
 
@@ -360,11 +408,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseAvx)
             {
-                EmitSse2CmpOpF(context, CmpCondition.GreaterThan, scalar: false);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.GreaterThan, scalar: false);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareGT, SoftFloat64.FPCompareGT, scalar: false);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareGT), scalar: false);
             }
         }
 
@@ -372,11 +420,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseSse2)
             {
-                EmitSse2CmpOpF(context, CmpCondition.LessThanOrEqual, scalar: true);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.LessThanOrEqual, scalar: true);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareLE, SoftFloat64.FPCompareLE, scalar: true);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareLE), scalar: true);
             }
         }
 
@@ -384,11 +432,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseSse2)
             {
-                EmitSse2CmpOpF(context, CmpCondition.LessThanOrEqual, scalar: false);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.LessThanOrEqual, scalar: false);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareLE, SoftFloat64.FPCompareLE, scalar: false);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareLE), scalar: false);
             }
         }
 
@@ -396,11 +444,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseSse2)
             {
-                EmitSse2CmpOpF(context, CmpCondition.LessThan, scalar: true);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.LessThan, scalar: true);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareLT, SoftFloat64.FPCompareLT, scalar: true);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareLT), scalar: true);
             }
         }
 
@@ -408,11 +456,11 @@ namespace ARMeilleure.Instructions
         {
             if (Optimizations.FastFP && Optimizations.UseSse2)
             {
-                EmitSse2CmpOpF(context, CmpCondition.LessThan, scalar: false);
+                EmitSse2OrAvxCmpOpF(context, CmpCondition.LessThan, scalar: false);
             }
             else
             {
-                EmitCmpOpF(context, SoftFloat32.FPCompareLT, SoftFloat64.FPCompareLT, scalar: false);
+                EmitCmpOpF(context, nameof(SoftFloat32.FPCompareLT), scalar: false);
             }
         }
 
@@ -490,9 +538,12 @@ namespace ARMeilleure.Instructions
 
                     context.BranchIfFalse(lblNaN, isOrdered);
 
-                    Operand cf = context.AddIntrinsicInt(Intrinsic.X86Comissge, n, m);
-                    Operand zf = context.AddIntrinsicInt(Intrinsic.X86Comisseq, n, m);
-                    Operand nf = context.AddIntrinsicInt(Intrinsic.X86Comisslt, n, m);
+                    Operand nCopy = context.Copy(n);
+                    Operand mCopy = cmpWithZero ? context.VectorZero() : context.Copy(m);
+
+                    Operand cf = context.AddIntrinsicInt(Intrinsic.X86Comissge, nCopy, mCopy);
+                    Operand zf = context.AddIntrinsicInt(Intrinsic.X86Comisseq, nCopy, mCopy);
+                    Operand nf = context.AddIntrinsicInt(Intrinsic.X86Comisslt, nCopy, mCopy);
 
                     SetFlag(context, PState.VFlag, Const(0));
                     SetFlag(context, PState.CFlag, cf);
@@ -507,9 +558,12 @@ namespace ARMeilleure.Instructions
 
                     context.BranchIfFalse(lblNaN, isOrdered);
 
-                    Operand cf = context.AddIntrinsicInt(Intrinsic.X86Comisdge, n, m);
-                    Operand zf = context.AddIntrinsicInt(Intrinsic.X86Comisdeq, n, m);
-                    Operand nf = context.AddIntrinsicInt(Intrinsic.X86Comisdlt, n, m);
+                    Operand nCopy = context.Copy(n);
+                    Operand mCopy = cmpWithZero ? context.VectorZero() : context.Copy(m);
+
+                    Operand cf = context.AddIntrinsicInt(Intrinsic.X86Comisdge, nCopy, mCopy);
+                    Operand zf = context.AddIntrinsicInt(Intrinsic.X86Comisdeq, nCopy, mCopy);
+                    Operand nf = context.AddIntrinsicInt(Intrinsic.X86Comisdlt, nCopy, mCopy);
 
                     SetFlag(context, PState.VFlag, Const(0));
                     SetFlag(context, PState.CFlag, cf);
@@ -544,11 +598,7 @@ namespace ARMeilleure.Instructions
                     me = context.VectorExtract(type, GetVec(op.Rm), 0);
                 }
 
-                Delegate dlg = op.Size != 0
-                    ? (Delegate)new _S32_F64_F64_Bool(SoftFloat64.FPCompare)
-                    : (Delegate)new _S32_F32_F32_Bool(SoftFloat32.FPCompare);
-
-                Operand nzcv = context.Call(dlg, ne, me, Const(signalNaNs));
+                Operand nzcv = EmitSoftFloatCall(context, nameof(SoftFloat32.FPCompare), ne, me, Const(signalNaNs));
 
                 EmitSetNzcv(context, nzcv);
             }
@@ -635,11 +685,7 @@ namespace ARMeilleure.Instructions
             context.Copy(GetVec(op.Rd), res);
         }
 
-        private static void EmitCmpOpF(
-            ArmEmitterContext context,
-            _F32_F32_F32 f32,
-            _F64_F64_F64 f64,
-            bool scalar)
+        private static void EmitCmpOpF(ArmEmitterContext context, string name, bool scalar, bool absolute = false)
         {
             OpCodeSimd op = (OpCodeSimd)context.CurrOp;
 
@@ -665,7 +711,13 @@ namespace ARMeilleure.Instructions
                     me = sizeF == 0 ? ConstF(0f) : ConstF(0d);
                 }
 
-                Operand e = EmitSoftFloatCall(context, f32, f64, ne, me);
+                if (absolute)
+                {
+                    ne = EmitUnaryMathCall(context, nameof(Math.Abs), ne);
+                    me = EmitUnaryMathCall(context, nameof(Math.Abs), me);
+                }
+
+                Operand e = EmitSoftFloatCall(context, name, ne, me);
 
                 res = context.VectorInsert(res, e, index);
             }
@@ -673,7 +725,7 @@ namespace ARMeilleure.Instructions
             context.Copy(GetVec(op.Rd), res);
         }
 
-        private static void EmitSse2CmpOpF(ArmEmitterContext context, CmpCondition cond, bool scalar)
+        private static void EmitSse2OrAvxCmpOpF(ArmEmitterContext context, CmpCondition cond, bool scalar, bool absolute = false)
         {
             OpCodeSimd op = (OpCodeSimd)context.CurrOp;
 
@@ -684,6 +736,14 @@ namespace ARMeilleure.Instructions
 
             if (sizeF == 0)
             {
+                if (absolute)
+                {
+                    Operand mask = scalar ? X86GetScalar(context, int.MaxValue) : X86GetAllElements(context, int.MaxValue);
+
+                    n = context.AddIntrinsic(Intrinsic.X86Andps, n, mask);
+                    m = context.AddIntrinsic(Intrinsic.X86Andps, m, mask);
+                }
+
                 Intrinsic inst = scalar ? Intrinsic.X86Cmpss : Intrinsic.X86Cmpps;
 
                 Operand res = context.AddIntrinsic(inst, n, m, Const((int)cond));
@@ -701,6 +761,14 @@ namespace ARMeilleure.Instructions
             }
             else /* if (sizeF == 1) */
             {
+                if (absolute)
+                {
+                    Operand mask = scalar ? X86GetScalar(context, long.MaxValue) : X86GetAllElements(context, long.MaxValue);
+
+                    n = context.AddIntrinsic(Intrinsic.X86Andpd, n, mask);
+                    m = context.AddIntrinsic(Intrinsic.X86Andpd, m, mask);
+                }
+
                 Intrinsic inst = scalar ? Intrinsic.X86Cmpsd : Intrinsic.X86Cmppd;
 
                 Operand res = context.AddIntrinsic(inst, n, m, Const((int)cond));

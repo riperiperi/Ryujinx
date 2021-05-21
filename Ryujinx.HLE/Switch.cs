@@ -1,132 +1,183 @@
-using LibHac.FsSystem;
-using Ryujinx.Audio;
-using Ryujinx.Configuration;
-using Ryujinx.Graphics;
-using Ryujinx.Graphics.Gal;
+using Ryujinx.Audio.Backends.CompatLayer;
+using Ryujinx.Audio.Integration;
+using Ryujinx.Graphics.Gpu;
+using Ryujinx.Graphics.Host1x;
+using Ryujinx.Graphics.Nvdec;
+using Ryujinx.Graphics.Vic;
 using Ryujinx.HLE.FileSystem;
 using Ryujinx.HLE.HOS;
-using Ryujinx.HLE.HOS.Services;
-using Ryujinx.HLE.HOS.SystemState;
-using Ryujinx.HLE.Input;
+using Ryujinx.HLE.HOS.Services.Apm;
+using Ryujinx.HLE.HOS.Services.Hid;
+using Ryujinx.HLE.HOS.Services.Nv.NvDrvServices;
+using Ryujinx.Memory;
 using System;
-using System.Threading;
 
 namespace Ryujinx.HLE
 {
     public class Switch : IDisposable
     {
-        internal IAalOutput AudioOut { get; private set; }
+        public HLEConfiguration Configuration { get; }
 
-        internal DeviceMemory Memory { get; private set; }
+        public IHardwareDeviceDriver AudioDeviceDriver { get; }
 
-        internal NvGpu Gpu { get; private set; }
+        internal MemoryBlock Memory { get; }
 
-        internal VirtualFileSystem FileSystem { get; private set; }
+        public GpuContext Gpu { get; }
 
-        public Horizon System { get; private set; }
+        internal NvMemoryAllocator MemoryAllocator { get; }
 
-        public PerformanceStatistics Statistics { get; private set; }
+        internal Host1xDevice Host1x { get; }
 
-        public Hid Hid { get; private set; }
+        public VirtualFileSystem FileSystem => Configuration.VirtualFileSystem;
+
+        public Horizon System { get; }
+
+        public ApplicationLoader Application { get; }
+
+        public PerformanceStatistics Statistics { get; }
+
+        public Hid Hid { get; }
+
+        public TamperMachine TamperMachine { get; }
+
+        public IHostUiHandler UiHandler { get; }
 
         public bool EnableDeviceVsync { get; set; } = true;
 
-        public AutoResetEvent VsyncEvent { get; private set; }
-
-        public event EventHandler Finish;
-
-        public Switch(IGalRenderer renderer, IAalOutput audioOut)
+        public Switch(HLEConfiguration configuration)
         {
-            if (renderer == null)
+            if (configuration.GpuRenderer == null)
             {
-                throw new ArgumentNullException(nameof(renderer));
+                throw new ArgumentNullException(nameof(configuration.GpuRenderer));
             }
 
-            if (audioOut == null)
+            if (configuration.AudioDeviceDriver == null)
             {
-                throw new ArgumentNullException(nameof(audioOut));
+                throw new ArgumentNullException(nameof(configuration.AudioDeviceDriver));
             }
 
-            AudioOut = audioOut;
+            if (configuration.UserChannelPersistence== null)
+            {
+                throw new ArgumentNullException(nameof(configuration.UserChannelPersistence));
+            }
 
-            Memory = new DeviceMemory();
+            Configuration = configuration;
 
-            Gpu = new NvGpu(renderer);
+            UiHandler = configuration.HostUiHandler;
 
-            FileSystem = new VirtualFileSystem();
+            AudioDeviceDriver = new CompatLayerHardwareDeviceDriver(configuration.AudioDeviceDriver);
+
+            Memory = new MemoryBlock(configuration.MemoryConfiguration.ToDramSize());
+
+            Gpu = new GpuContext(configuration.GpuRenderer);
+
+            MemoryAllocator = new NvMemoryAllocator();
+
+            Host1x = new Host1xDevice(Gpu.Synchronization);
+            var nvdec = new NvdecDevice(Gpu.MemoryManager);
+            var vic = new VicDevice(Gpu.MemoryManager);
+            Host1x.RegisterDevice(ClassId.Nvdec, nvdec);
+            Host1x.RegisterDevice(ClassId.Vic, vic);
+
+            nvdec.FrameDecoded += (FrameDecodedEventArgs e) =>
+            {
+                // FIXME:
+                // Figure out what is causing frame ordering issues on H264.
+                // For now this is needed as workaround.
+                if (e.CodecId == CodecId.H264)
+                {
+                    vic.SetSurfaceOverride(e.LumaOffset, e.ChromaOffset, 0);
+                }
+                else
+                {
+                    vic.DisableSurfaceOverride();
+                }
+            };
 
             System = new Horizon(this);
+            System.InitializeServices();
 
             Statistics = new PerformanceStatistics();
 
             Hid = new Hid(this, System.HidBaseAddress);
+            Hid.InitDevices();
 
-            VsyncEvent = new AutoResetEvent(true);
+            Application = new ApplicationLoader(this);
+
+            TamperMachine = new TamperMachine();
+
+            Initialize();
         }
 
-        public void Initialize()
+        private void Initialize()
         {
-            System.State.SetLanguage((SystemLanguage)ConfigurationState.Instance.System.Language.Value);
+            System.State.SetLanguage(Configuration.SystemLanguage);
 
-            EnableDeviceVsync = ConfigurationState.Instance.Graphics.EnableVsync;
+            System.State.SetRegion(Configuration.Region);
 
-            // TODO: Make this reloadable and implement Docking/Undocking logic.
-            System.State.DockedMode = ConfigurationState.Instance.System.EnableDockedMode;
+            EnableDeviceVsync = Configuration.EnableVsync;
 
-            if (ConfigurationState.Instance.System.EnableMulticoreScheduling)
-            {
-                System.EnableMultiCoreScheduling();
-            }
+            System.State.DockedMode = Configuration.EnableDockedMode;
 
-            System.FsIntegrityCheckLevel = ConfigurationState.Instance.System.EnableFsIntegrityChecks
-                ? IntegrityCheckLevel.ErrorOnInvalid
-                : IntegrityCheckLevel.None;
+            System.PerformanceState.PerformanceMode = System.State.DockedMode ? PerformanceMode.Boost : PerformanceMode.Default;
 
-            System.GlobalAccessLogMode = ConfigurationState.Instance.System.FsGlobalAccessLogMode;
+            System.EnablePtc = Configuration.EnablePtc;
 
-            ServiceConfiguration.IgnoreMissingServices = ConfigurationState.Instance.System.IgnoreMissingServices;
+            System.FsIntegrityCheckLevel = Configuration.FsIntegrityCheckLevel;
+
+            System.GlobalAccessLogMode = Configuration.FsGlobalAccessLogMode;
         }
 
         public void LoadCart(string exeFsDir, string romFsFile = null)
         {
-            System.LoadCart(exeFsDir, romFsFile);
+            Application.LoadCart(exeFsDir, romFsFile);
         }
 
         public void LoadXci(string xciFile)
         {
-            System.LoadXci(xciFile);
+            Application.LoadXci(xciFile);
         }
 
         public void LoadNca(string ncaFile)
         {
-            System.LoadNca(ncaFile);
+            Application.LoadNca(ncaFile);
         }
 
         public void LoadNsp(string nspFile)
         {
-            System.LoadNsp(nspFile);
+            Application.LoadNsp(nspFile);
         }
 
         public void LoadProgram(string fileName)
         {
-            System.LoadProgram(fileName);
+            Application.LoadProgram(fileName);
         }
 
         public bool WaitFifo()
         {
-            return Gpu.Pusher.WaitForCommands();
+            return Gpu.GPFifo.WaitForCommands();
         }
 
         public void ProcessFrame()
         {
-            Gpu.Pusher.DispatchCalls();
+            Gpu.Renderer.PreFrame();
+
+            Gpu.GPFifo.DispatchCalls();
         }
 
-        internal void Unload()
+        public bool ConsumeFrameAvailable()
         {
-            FileSystem.Dispose();
+            return Gpu.Window.ConsumeFrameAvailable();
+        }
 
-            Memory.Dispose();
+        public void PresentFrame(Action swapBuffersCallback)
+        {
+            Gpu.Window.Present(swapBuffersCallback);
+        }
+
+        public void DisposeGpu()
+        {
+            Gpu.Dispose();
         }
 
         public void Dispose()
@@ -139,7 +190,10 @@ namespace Ryujinx.HLE
             if (disposing)
             {
                 System.Dispose();
-                VsyncEvent.Dispose();
+                Host1x.Dispose();
+                AudioDeviceDriver.Dispose();
+                FileSystem.Unload();
+                Memory.Dispose();
             }
         }
     }

@@ -1,53 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
-    <RuntimeIdentifiers>win-x64;osx-x64;linux-x64</RuntimeIdentifiers>
-    <Configurations>Debug;Release;Profile Debug;Profile Release</Configurations>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <TargetFramework>net5.0</TargetFramework>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile Debug|AnyCPU'">
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>TRACE;USE_PROFILING</DefineConstants>
-    <Optimize>false</Optimize>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile Release|AnyCPU'">
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>TRACE;USE_PROFILING</DefineConstants>
-    <Optimize>true</Optimize>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="OpenTK.NetStandard" Version="1.0.4" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.6.0" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Ryujinx.Common\Ryujinx.Common.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ContentWithTargetPath Include="Native\libsoundio\libs\libsoundio.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>libsoundio.dll</TargetPath>
-    </ContentWithTargetPath>
-    <ContentWithTargetPath Include="Native\libsoundio\libs\libsoundio.dylib">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>libsoundio.dylib</TargetPath>
-    </ContentWithTargetPath>
-    <ContentWithTargetPath Include="Native\libsoundio\libs\libsoundio.so">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <TargetPath>libsoundio.so</TargetPath>
-    </ContentWithTargetPath>
+    <ProjectReference Include="..\Ryujinx.Cpu\Ryujinx.Cpu.csproj" />
+    <ProjectReference Include="..\Ryujinx.Memory\Ryujinx.Memory.csproj" />
   </ItemGroup>
 
 </Project>

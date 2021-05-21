@@ -1,15 +1,16 @@
-using ARMeilleure.Memory;
+using Ryujinx.Cpu;
+using Ryujinx.Memory;
 using System.Runtime.InteropServices;
 
 namespace Ryujinx.HLE.Utilities
 {
     class StructWriter
     {
-        private MemoryManager _memory;
+        private IVirtualMemoryManager _memory;
 
-        public long Position { get; private set; }
+        public ulong Position { get; private set; }
 
-        public StructWriter(MemoryManager memory, long position)
+        public StructWriter(IVirtualMemoryManager memory, ulong position)
         {
             _memory  = memory;
             Position = position;
@@ -19,7 +20,12 @@ namespace Ryujinx.HLE.Utilities
         {
             MemoryHelper.Write(_memory, Position, value);
 
-            Position += Marshal.SizeOf<T>();
+            Position += (ulong)Marshal.SizeOf<T>();
+        }
+
+        public void SkipBytes(ulong count)
+        {
+            Position += count;
         }
     }
 }

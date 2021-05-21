@@ -17,16 +17,21 @@ namespace Ryujinx.Common.Logging
                 sb.Clear();
 
                 sb.AppendFormat(@"{0:hh\:mm\:ss\.fff}", args.Time);
-                sb.Append(" | ");
-                sb.AppendFormat("{0:d4}", args.ThreadId);
-                sb.Append(' ');
+                sb.Append($" |{args.Level.ToString()[0]}| ");
+
+                if (args.ThreadName != null)
+                {
+                    sb.Append(args.ThreadName);
+                    sb.Append(' ');
+                }
+
                 sb.Append(args.Message);
 
                 if (args.Data != null)
                 {
                     PropertyInfo[] props = args.Data.GetType().GetProperties();
 
-                    sb.Append(' ');
+                    sb.Append(" {");
 
                     foreach (var prop in props)
                     {
@@ -35,28 +40,33 @@ namespace Ryujinx.Common.Logging
 
                         if (typeof(Array).IsAssignableFrom(prop.PropertyType))
                         {
-                            Array enumerable = (Array)prop.GetValue(args.Data);
-                            foreach (var item in enumerable)
+                            Array array = (Array)prop.GetValue(args.Data);
+                            foreach (var item in array)
                             {
                                 sb.Append(item.ToString());
                                 sb.Append(", ");
                             }
 
-                            sb.Remove(sb.Length - 2, 2);
+                            if (array.Length > 0)
+                            {
+                                sb.Remove(sb.Length - 2, 2);
+                            }
                         }
                         else
                         {
                             sb.Append(prop.GetValue(args.Data));
                         }
 
-                        sb.Append(" - ");
+                        sb.Append(" ; ");
                     }
 
-                    // We remove the final '-' from the string
+                    // We remove the final ';' from the string
                     if (props.Length > 0)
                     {
                         sb.Remove(sb.Length - 3, 3);
                     }
+
+                    sb.Append('}');
                 }
 
                 return sb.ToString();

@@ -15,7 +15,18 @@ namespace ARMeilleure.Instructions
             Operand d = GetVec(op.Rd);
             Operand n = GetVec(op.Rn);
 
-            context.Copy(d, context.Call(new _V128_V128_V128(SoftFallback.Decrypt), d, n));
+            Operand res;
+
+            if (Optimizations.UseAesni)
+            {
+                res = context.AddIntrinsic(Intrinsic.X86Aesdeclast, context.AddIntrinsic(Intrinsic.X86Xorpd, d, n), context.VectorZero());
+            }
+            else
+            {
+                res = context.Call(typeof(SoftFallback).GetMethod(nameof(SoftFallback.Decrypt)), d, n);
+            }
+
+            context.Copy(d, res);
         }
 
         public static void Aese_V(ArmEmitterContext context)
@@ -25,7 +36,18 @@ namespace ARMeilleure.Instructions
             Operand d = GetVec(op.Rd);
             Operand n = GetVec(op.Rn);
 
-            context.Copy(d, context.Call(new _V128_V128_V128(SoftFallback.Encrypt), d, n));
+            Operand res;
+
+            if (Optimizations.UseAesni)
+            {
+                res = context.AddIntrinsic(Intrinsic.X86Aesenclast, context.AddIntrinsic(Intrinsic.X86Xorpd, d, n), context.VectorZero());
+            }
+            else
+            {
+                res = context.Call(typeof(SoftFallback).GetMethod(nameof(SoftFallback.Encrypt)), d, n);
+            }
+
+            context.Copy(d, res);
         }
 
         public static void Aesimc_V(ArmEmitterContext context)
@@ -34,7 +56,18 @@ namespace ARMeilleure.Instructions
 
             Operand n = GetVec(op.Rn);
 
-            context.Copy(GetVec(op.Rd), context.Call(new _V128_V128(SoftFallback.InverseMixColumns), n));
+            Operand res;
+
+            if (Optimizations.UseAesni)
+            {
+                res = context.AddIntrinsic(Intrinsic.X86Aesimc, n);
+            }
+            else
+            {
+                res = context.Call(typeof(SoftFallback).GetMethod(nameof(SoftFallback.InverseMixColumns)), n);
+            }
+
+            context.Copy(GetVec(op.Rd), res);
         }
 
         public static void Aesmc_V(ArmEmitterContext context)
@@ -43,7 +76,24 @@ namespace ARMeilleure.Instructions
 
             Operand n = GetVec(op.Rn);
 
-            context.Copy(GetVec(op.Rd), context.Call(new _V128_V128(SoftFallback.MixColumns), n));
+            Operand res;
+
+            if (Optimizations.UseAesni)
+            {
+                Operand roundKey = context.VectorZero();
+
+                // Inverse Shift Rows, Inverse Sub Bytes, xor 0 so nothing happens
+                res = context.AddIntrinsic(Intrinsic.X86Aesdeclast, n, roundKey);
+
+                // Shift Rows, Sub Bytes, Mix Columns (!), xor 0 so nothing happens
+                res = context.AddIntrinsic(Intrinsic.X86Aesenc, res, roundKey);
+            }
+            else
+            {
+                res = context.Call(typeof(SoftFallback).GetMethod(nameof(SoftFallback.MixColumns)), n);
+            }
+
+            context.Copy(GetVec(op.Rd), res);
         }
     }
 }

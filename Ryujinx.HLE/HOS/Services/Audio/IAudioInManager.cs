@@ -1,8 +1,12 @@
-﻿namespace Ryujinx.HLE.HOS.Services.Audio
+﻿using Ryujinx.Audio.Common;
+using Ryujinx.HLE.HOS.Services.Audio.AudioIn;
+
+namespace Ryujinx.HLE.HOS.Services.Audio
 {
-    [Service("audin:u")]
-    class IAudioInManager : IpcService
+    interface IAudioInManager
     {
-        public IAudioInManager(ServiceCtx context) { }
+        public string[] ListAudioIns(bool filtered);
+
+        public ResultCode OpenAudioIn(ServiceCtx context, out string outputDeviceName, out AudioOutputConfiguration outputConfiguration, out IAudioIn obj, string inputDeviceName, ref AudioInputConfiguration parameter, ulong appletResourceUserId, uint processHandle);
     }
 }

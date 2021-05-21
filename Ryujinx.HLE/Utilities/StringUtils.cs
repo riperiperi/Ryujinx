@@ -1,4 +1,5 @@
-﻿using Ryujinx.HLE.HOS;
+﻿using LibHac.Common;
+using Ryujinx.HLE.HOS;
 using System;
 using System.Globalization;
 using System.IO;
@@ -52,14 +53,14 @@ namespace Ryujinx.HLE.Utilities
 
         public static string ReadUtf8String(ServiceCtx context, int index = 0)
         {
-            long position = context.Request.PtrBuff[index].Position;
-            long size     = context.Request.PtrBuff[index].Size;
+            ulong position = context.Request.PtrBuff[index].Position;
+            ulong size     = context.Request.PtrBuff[index].Size;
 
             using (MemoryStream ms = new MemoryStream())
             {
                 while (size-- > 0)
                 {
-                    byte value = context.Memory.ReadByte(position++);
+                    byte value = context.Memory.Read<byte>(position++);
 
                     if (value == 0)
                     {
@@ -73,16 +74,26 @@ namespace Ryujinx.HLE.Utilities
             }
         }
 
+        public static U8Span ReadUtf8Span(ServiceCtx context, int index = 0)
+        {
+            ulong position = (ulong)context.Request.PtrBuff[index].Position;
+            ulong size     = (ulong)context.Request.PtrBuff[index].Size;
+
+            ReadOnlySpan<byte> buffer = context.Memory.GetSpan(position, (int)size);
+
+            return new U8Span(buffer);
+        }
+
         public static string ReadUtf8StringSend(ServiceCtx context, int index = 0)
         {
-            long position = context.Request.SendBuff[index].Position;
-            long size     = context.Request.SendBuff[index].Size;
+            ulong position = context.Request.SendBuff[index].Position;
+            ulong size     = context.Request.SendBuff[index].Size;
 
             using (MemoryStream ms = new MemoryStream())
             {
                 while (size-- > 0)
                 {
-                    byte value = context.Memory.ReadByte(position++);
+                    byte value = context.Memory.Read<byte>((ulong)position++);
 
                     if (value == 0)
                     {

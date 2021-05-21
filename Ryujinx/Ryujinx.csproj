@@ -1,97 +1,114 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.0</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
     <RuntimeIdentifiers>win-x64;osx-x64;linux-x64</RuntimeIdentifiers>
     <OutputType>Exe</OutputType>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Configurations>Debug;Release;Profile Debug;Profile Release</Configurations>
+    <Version>1.0.0-dirty</Version>
+    <TieredCompilation>false</TieredCompilation>
+    <TieredCompilationQuickJit>false</TieredCompilationQuickJit>
+    <DefineConstants Condition=" '$(ExtraDefineConstants)' != '' ">$(DefineConstants);$(ExtraDefineConstants)</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile Release|AnyCPU'">
-    <DefineConstants>TRACE;USE_PROFILING</DefineConstants>
-    <Optimize>true</Optimize>
-  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="DiscordRichPresence" Version="1.0.175" />
+    <PackageReference Include="GtkSharp" Version="3.22.25.128" />
+    <PackageReference Include="GtkSharp.Dependencies" Version="1.1.0" Condition="'$(RuntimeIdentifier)' != 'linux-x64' AND '$(RuntimeIdentifier)' != 'osx-x64'" />
+    <PackageReference Include="Ryujinx.Graphics.Nvdec.Dependencies" Version="4.4.0-build7" Condition="'$(RuntimeIdentifier)' != 'linux-x64' AND '$(RuntimeIdentifier)' != 'osx-x64'" />
+    <PackageReference Include="Ryujinx.Audio.OpenAL.Dependencies" Version="1.21.0.1" Condition="'$(RuntimeIdentifier)' != 'linux-x64' AND '$(RuntimeIdentifier)' != 'osx-x64'" />
+    <PackageReference Include="OpenTK.Graphics" Version="4.5.0" />
+    <PackageReference Include="SPB" Version="0.0.3-build15" />
+    <PackageReference Include="SharpZipLib" Version="1.3.0" />
+  </ItemGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Profile Debug|AnyCPU'">
-    <DefineConstants>TRACE;USE_PROFILING</DefineConstants>
-    <Optimize>false</Optimize>
-  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ryujinx.Input\Ryujinx.Input.csproj" />
+    <ProjectReference Include="..\Ryujinx.Input.SDL2\Ryujinx.Input.SDL2.csproj" />
+    <ProjectReference Include="..\Ryujinx.Audio.Backends.OpenAL\Ryujinx.Audio.Backends.OpenAL.csproj" />
+    <ProjectReference Include="..\Ryujinx.Audio.Backends.SDL2\Ryujinx.Audio.Backends.SDL2.csproj" />
+    <ProjectReference Include="..\Ryujinx.Audio.Backends.SoundIo\Ryujinx.Audio.Backends.SoundIo.csproj" />
+    <ProjectReference Include="..\Ryujinx.Common\Ryujinx.Common.csproj" />
+    <ProjectReference Include="..\Ryujinx.HLE\Ryujinx.HLE.csproj" />
+    <ProjectReference Include="..\ARMeilleure\ARMeilleure.csproj" />
+    <ProjectReference Include="..\Ryujinx.Graphics.OpenGL\Ryujinx.Graphics.OpenGL.csproj" />
+    <ProjectReference Include="..\Ryujinx.Graphics.Gpu\Ryujinx.Graphics.Gpu.csproj" />
+  </ItemGroup>
 
-  <!-- Due to .net core 3.0 embedded resource loading -->
+  <ItemGroup>
+    <None Update="alsoft.ini">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Config.json" Condition="'$(Configuration)' == 'Debug' OR '$(Configuration)' == 'Profile Debug'">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="THIRDPARTY.md">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <ContentWithTargetPath Include="..\Ryujinx.Audio\LICENSE.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <TargetPath>LICENSE-Ryujinx.Audio.txt</TargetPath>
+    </ContentWithTargetPath>
+  </ItemGroup>
+
+  <!-- Due to .net core 3.1 embedded resource loading -->
   <PropertyGroup>
     <EmbeddedResourceUseDependentUponConvention>false</EmbeddedResourceUseDependentUponConvention>
+    <ApplicationIcon>Ryujinx.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'osx-x64'">
-    <DefineConstants>MACOS_BUILD</DefineConstants>
+    <DefineConstants>$(DefineConstants);MACOS_BUILD</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
-    <None Remove="Ui\AboutWindow.glade" />
-    <None Remove="Ui\assets\BlueCon.png" />
-    <None Remove="Ui\assets\ProCon.png" />
-    <None Remove="Ui\assets\RedCon.png" />
-    <None Remove="Ui\assets\NCAIcon.png" />
-    <None Remove="Ui\assets\NROIcon.png" />
-    <None Remove="Ui\assets\NSOIcon.png" />
-    <None Remove="Ui\assets\NSPIcon.png" />
-    <None Remove="Ui\assets\XCIIcon.png" />
-    <None Remove="Ui\assets\DiscordLogo.png" />
-    <None Remove="Ui\assets\GitHubLogo.png" />
-    <None Remove="Ui\assets\JoyCon.png" />
-    <None Remove="Ui\assets\PatreonLogo.png" />
-    <None Remove="Ui\assets\Icon.png" />
-    <None Remove="Ui\assets\TwitterLogo.png" />
-    <None Remove="Ui\GameTableContextMenu.glade" />
     <None Remove="Ui\MainWindow.glade" />
-    <None Remove="Ui\SwitchSettings.glade" />
+    <None Remove="Ui\Resources\Controller_JoyConLeft.svg" />
+    <None Remove="Ui\Resources\Controller_JoyConPair.svg" />
+    <None Remove="Ui\Resources\Controller_JoyConRight.svg" />
+    <None Remove="Ui\Resources\Controller_ProCon.svg" />
+    <None Remove="Ui\Resources\Icon_NCA.png" />
+    <None Remove="Ui\Resources\Icon_NRO.png" />
+    <None Remove="Ui\Resources\Icon_NSO.png" />
+    <None Remove="Ui\Resources\Icon_NSP.png" />
+    <None Remove="Ui\Resources\Icon_XCI.png" />
+    <None Remove="Ui\Resources\Logo_Amiibo.png" />
+    <None Remove="Ui\Resources\Logo_Discord.png" />
+    <None Remove="Ui\Resources\Logo_GitHub.png" />
+    <None Remove="Ui\Resources\Logo_Patreon.png" />
+    <None Remove="Ui\Resources\Logo_Ryujinx.png" />
+    <None Remove="Ui\Resources\Logo_Twitter.png" />
+    <None Remove="Ui\Widgets\ProfileDialog.glade" />
+    <None Remove="Ui\Windows\ControllerWindow.glade" />
+    <None Remove="Ui\Windows\DlcWindow.glade" />
+    <None Remove="Ui\Windows\SettingsWindow.glade" />
+    <None Remove="Ui\Windows\TitleUpdateWindow.glade" />
+    <None Remove="Modules\Updater\UpdateDialog.glade" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Ui\AboutWindow.glade" />
-    <EmbeddedResource Include="Ui\assets\BlueCon.png" />
-    <EmbeddedResource Include="Ui\assets\ProCon.png" />
-    <EmbeddedResource Include="Ui\assets\RedCon.png" />
-    <EmbeddedResource Include="Ui\assets\NCAIcon.png" />
-    <EmbeddedResource Include="Ui\assets\NROIcon.png" />
-    <EmbeddedResource Include="Ui\assets\NSOIcon.png" />
-    <EmbeddedResource Include="Ui\assets\NSPIcon.png" />
-    <EmbeddedResource Include="Ui\assets\XCIIcon.png" />
-    <EmbeddedResource Include="Ui\assets\DiscordLogo.png" />
-    <EmbeddedResource Include="Ui\assets\GitHubLogo.png" />
-    <EmbeddedResource Include="Ui\assets\JoyCon.png" />
-    <EmbeddedResource Include="Ui\assets\PatreonLogo.png" />
-    <EmbeddedResource Include="Ui\assets\Icon.png" />
-    <EmbeddedResource Include="Ui\assets\TwitterLogo.png" />
-    <EmbeddedResource Include="Ui\GameTableContextMenu.glade" />
     <EmbeddedResource Include="Ui\MainWindow.glade" />
-    <EmbeddedResource Include="Ui\SwitchSettings.glade" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <PackageReference Include="DiscordRichPresence" Version="1.0.121" />
-    <PackageReference Include="GtkSharp" Version="3.22.25.24" />
-    <PackageReference Include="GtkSharp.Dependencies" Version="1.1.0" Condition="'$(RuntimeIdentifier)' != 'linux-x64' AND '$(RuntimeIdentifier)' != 'osx-x64'" />
-    <PackageReference Include="OpenTK.NetStandard" Version="1.0.4" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\Ryujinx.Audio\Ryujinx.Audio.csproj" />
-    <ProjectReference Include="..\Ryujinx.Common\Ryujinx.Common.csproj" />
-    <ProjectReference Include="..\Ryujinx.Graphics\Ryujinx.Graphics.csproj" />
-    <ProjectReference Include="..\Ryujinx.HLE\Ryujinx.HLE.csproj" />
-    <ProjectReference Include="..\Ryujinx.Profiler\Ryujinx.Profiler.csproj" />
-    <ProjectReference Include="..\ARMeilleure\ARMeilleure.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Config.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="RPsupported.dat">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <EmbeddedResource Include="Ui\Resources\Controller_JoyConLeft.svg" />
+    <EmbeddedResource Include="Ui\Resources\Controller_JoyConPair.svg" />
+    <EmbeddedResource Include="Ui\Resources\Controller_JoyConRight.svg" />
+    <EmbeddedResource Include="Ui\Resources\Controller_ProCon.svg" />
+    <EmbeddedResource Include="Ui\Resources\Icon_NCA.png" />
+    <EmbeddedResource Include="Ui\Resources\Icon_NRO.png" />
+    <EmbeddedResource Include="Ui\Resources\Icon_NSO.png" />
+    <EmbeddedResource Include="Ui\Resources\Icon_NSP.png" />
+    <EmbeddedResource Include="Ui\Resources\Icon_XCI.png" />
+    <EmbeddedResource Include="Ui\Resources\Logo_Amiibo.png" />
+    <EmbeddedResource Include="Ui\Resources\Logo_Discord.png" />
+    <EmbeddedResource Include="Ui\Resources\Logo_GitHub.png" />
+    <EmbeddedResource Include="Ui\Resources\Logo_Patreon.png" />
+    <EmbeddedResource Include="Ui\Resources\Logo_Ryujinx.png" />
+    <EmbeddedResource Include="Ui\Resources\Logo_Twitter.png" />
+    <EmbeddedResource Include="Ui\Widgets\ProfileDialog.glade" />
+    <EmbeddedResource Include="Ui\Windows\ControllerWindow.glade" />
+    <EmbeddedResource Include="Ui\Windows\DlcWindow.glade" />
+    <EmbeddedResource Include="Ui\Windows\SettingsWindow.glade" />
+    <EmbeddedResource Include="Ui\Windows\TitleUpdateWindow.glade" />
+    <EmbeddedResource Include="Modules\Updater\UpdateDialog.glade" />
   </ItemGroup>
 
 </Project>

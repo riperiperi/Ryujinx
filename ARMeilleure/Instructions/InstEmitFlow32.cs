@@ -1,7 +1,9 @@
 using ARMeilleure.Decoders;
+using ARMeilleure.IntermediateRepresentation;
 using ARMeilleure.State;
 using ARMeilleure.Translation;
 
+using static ARMeilleure.Instructions.InstEmitFlowHelper;
 using static ARMeilleure.Instructions.InstEmitHelper;
 using static ARMeilleure.IntermediateRepresentation.OperandHelper;
 
@@ -13,16 +15,7 @@ namespace ARMeilleure.Instructions
         {
             IOpCode32BImm op = (IOpCode32BImm)context.CurrOp;
 
-            if (context.CurrBlock.Branch != null)
-            {
-                context.Branch(context.GetLabel((ulong)op.Immediate));
-            }
-            else
-            {
-                context.StoreToContext();
-
-                context.Return(Const(op.Immediate));
-            }
+            context.Branch(context.GetLabel((ulong)op.Immediate));
         }
 
         public static void Bl(ArmEmitterContext context)
@@ -35,15 +28,6 @@ namespace ARMeilleure.Instructions
             Blx(context, x: true);
         }
 
-        public static void Bx(ArmEmitterContext context)
-        {
-            IOpCode32BReg op = (IOpCode32BReg)context.CurrOp;
-
-            context.StoreToContext();
-
-            EmitBxWritePc(context, GetIntA32(context, op.Rm));
-        }
-
         private static void Blx(ArmEmitterContext context, bool x)
         {
             IOpCode32BImm op = (IOpCode32BImm)context.CurrOp;
@@ -53,10 +37,10 @@ namespace ARMeilleure.Instructions
             bool isThumb = IsThumb(context.CurrOp);
 
             uint currentPc = isThumb
-                ? op.GetPc() | 1
-                : op.GetPc() - 4;
+                ? pc | 1
+                : pc - 4;
 
-            SetIntOrSP(context, GetBankedRegisterAlias(context.Mode, RegisterAlias.Aarch32Lr), Const(currentPc));
+            SetIntA32(context, GetBankedRegisterAlias(context.Mode, RegisterAlias.Aarch32Lr), Const(currentPc));
 
             // If x is true, then this is a branch with link and exchange.
             // In this case we need to swap the mode between Arm <-> Thumb.
@@ -65,7 +49,36 @@ namespace ARMeilleure.Instructions
                 SetFlag(context, PState.TFlag, Const(isThumb ? 0 : 1));
             }
 
-            InstEmitFlowHelper.EmitCall(context, (ulong)op.Immediate);
+            EmitCall(context, (ulong)op.Immediate);
+        }
+
+        public static void Blxr(ArmEmitterContext context)
+        {
+            IOpCode32BReg op = (IOpCode32BReg)context.CurrOp;
+
+            uint pc = op.GetPc();
+
+            Operand addr = context.Copy(GetIntA32(context, op.Rm));
+            Operand bitOne = context.BitwiseAnd(addr, Const(1));
+
+            bool isThumb = IsThumb(context.CurrOp);
+
+            uint currentPc = isThumb
+                ? pc | 1
+                : pc - 4;
+
+            SetIntA32(context, GetBankedRegisterAlias(context.Mode, RegisterAlias.Aarch32Lr), Const(currentPc));
+
+            SetFlag(context, PState.TFlag, bitOne);
+
+            EmitVirtualCall(context, addr);
+        }
+
+        public static void Bx(ArmEmitterContext context)
+        {
+            IOpCode32BReg op = (IOpCode32BReg)context.CurrOp;
+
+            EmitBxWritePc(context, GetIntA32(context, op.Rm), op.Rm);
         }
     }
 }

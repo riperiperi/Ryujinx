@@ -1,9 +1,0 @@
-os: osx
-language: csharp
-solution: Ryujinx.sln
-mono: none
-dotnet: 2.0.0
-script:
- - dotnet restore
- - dotnet build
- - cd Ryujinx.Tests && dotnet test

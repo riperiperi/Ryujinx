@@ -195,6 +195,24 @@ namespace Ryujinx.Tests.Cpu
             };
         }
 
+        private static uint[] _SU_Cvt_F_S_Fixed_S_()
+        {
+            return new uint[]
+            {
+                0x5F20E420u, // SCVTF S0, S1, #32
+                0x7F20E420u  // UCVTF S0, S1, #32
+            };
+        }
+
+        private static uint[] _SU_Cvt_F_S_Fixed_D_()
+        {
+            return new uint[]
+            {
+                0x5F40E420u, // SCVTF D0, D1, #64
+                0x7F40E420u  // UCVTF D0, D1, #64
+            };
+        }
+
         private static uint[] _SU_Cvt_F_V_Fixed_2S_4S_()
         {
             return new uint[]
@@ -524,6 +542,42 @@ namespace Ryujinx.Tests.Cpu
         }
 
         [Test, Pairwise] [Explicit]
+        public void SU_Cvt_F_S_Fixed_S([ValueSource("_SU_Cvt_F_S_Fixed_S_")] uint opcodes,
+                                       [ValueSource("_1S_")] [Random(RndCnt)] ulong a,
+                                       [Values(1u, 32u)] [Random(2u, 31u, RndCntFBits)] uint fBits)
+        {
+            uint immHb = (64 - fBits) & 0x7F;
+
+            opcodes |= (immHb << 16);
+
+            ulong z = TestContext.CurrentContext.Random.NextULong();
+            V128 v0 = MakeVectorE0E1(z, z);
+            V128 v1 = MakeVectorE0(a);
+
+            SingleOpcode(opcodes, v0: v0, v1: v1);
+
+            CompareAgainstUnicorn();
+        }
+
+        [Test, Pairwise] [Explicit]
+        public void SU_Cvt_F_S_Fixed_D([ValueSource("_SU_Cvt_F_S_Fixed_D_")] uint opcodes,
+                                       [ValueSource("_1D_")] [Random(RndCnt)] ulong a,
+                                       [Values(1u, 64u)] [Random(2u, 63u, RndCntFBits)] uint fBits)
+        {
+            uint immHb = (128 - fBits) & 0x7F;
+
+            opcodes |= (immHb << 16);
+
+            ulong z = TestContext.CurrentContext.Random.NextULong();
+            V128 v0 = MakeVectorE1(z);
+            V128 v1 = MakeVectorE0(a);
+
+            SingleOpcode(opcodes, v0: v0, v1: v1);
+
+            CompareAgainstUnicorn();
+        }
+
+        [Test, Pairwise] [Explicit]
         public void SU_Cvt_F_V_Fixed_2S_4S([ValueSource("_SU_Cvt_F_V_Fixed_2S_4S_")] uint opcodes,
                                            [Values(0u)]     uint rd,
                                            [Values(1u, 0u)] uint rn,
@@ -564,7 +618,7 @@ namespace Ryujinx.Tests.Cpu
 
             SingleOpcode(opcodes, v0: v0, v1: v1);
 
-            CompareAgainstUnicorn(fpTolerances: FpTolerances.UpToOneUlpsD); // unsigned
+            CompareAgainstUnicorn();
         }
 
         [Test, Pairwise]

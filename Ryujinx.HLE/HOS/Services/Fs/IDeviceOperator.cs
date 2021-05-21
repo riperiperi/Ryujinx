@@ -1,18 +1,29 @@
 ﻿using LibHac;
-using LibHac.FsService;
+using LibHac.FsSrv;
 
 namespace Ryujinx.HLE.HOS.Services.Fs
 {
     class IDeviceOperator : IpcService
     {
-        private LibHac.FsService.IDeviceOperator _baseOperator;
+        private LibHac.FsSrv.IDeviceOperator _baseOperator;
 
-        public IDeviceOperator(LibHac.FsService.IDeviceOperator baseOperator)
+        public IDeviceOperator(LibHac.FsSrv.IDeviceOperator baseOperator)
         {
             _baseOperator = baseOperator;
         }
 
-        [Command(200)]
+        [CommandHipc(0)]
+        // IsSdCardInserted() -> b8 is_inserted
+        public ResultCode IsSdCardInserted(ServiceCtx context)
+        {
+            Result result = _baseOperator.IsSdCardInserted(out bool isInserted);
+
+            context.ResponseData.Write(isInserted);
+
+            return (ResultCode)result.Value;
+        }
+
+        [CommandHipc(200)]
         // IsGameCardInserted() -> b8 is_inserted
         public ResultCode IsGameCardInserted(ServiceCtx context)
         {
@@ -23,7 +34,7 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return (ResultCode)result.Value;
         }
 
-        [Command(202)]
+        [CommandHipc(202)]
         // GetGameCardHandle() -> u32 gamecard_handle
         public ResultCode GetGameCardHandle(ServiceCtx context)
         {

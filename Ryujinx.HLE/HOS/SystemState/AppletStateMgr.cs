@@ -6,43 +6,28 @@ namespace Ryujinx.HLE.HOS.SystemState
 {
     class AppletStateMgr
     {
-        private ConcurrentQueue<MessageInfo> _messages;
+        public ConcurrentQueue<MessageInfo> Messages { get; }
 
         public FocusState FocusState { get; private set; }
 
-        public KEvent MessageEvent { get; private set; }
+        public KEvent MessageEvent { get; }
+
+        public IdDictionary AppletResourceUserIds { get; }
 
         public AppletStateMgr(Horizon system)
         {
-            _messages = new ConcurrentQueue<MessageInfo>();
+            Messages     = new ConcurrentQueue<MessageInfo>();
+            MessageEvent = new KEvent(system.KernelContext);
 
-            MessageEvent = new KEvent(system);
+            AppletResourceUserIds = new IdDictionary();
         }
 
         public void SetFocus(bool isFocused)
         {
-            FocusState = isFocused
-                ? FocusState.InFocus
-                : FocusState.OutOfFocus;
+            FocusState = isFocused ? FocusState.InFocus : FocusState.OutOfFocus;
 
-            EnqueueMessage(MessageInfo.FocusStateChanged);
-        }
-
-        public void EnqueueMessage(MessageInfo message)
-        {
-            _messages.Enqueue(message);
-
+            Messages.Enqueue(MessageInfo.FocusStateChanged);
             MessageEvent.ReadableEvent.Signal();
-        }
-
-        public bool TryDequeueMessage(out MessageInfo message)
-        {
-            if (_messages.Count < 2)
-            {
-                MessageEvent.ReadableEvent.Clear();
-            }
-
-            return _messages.TryDequeue(out message);
         }
     }
 }

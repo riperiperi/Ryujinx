@@ -1,6 +1,7 @@
 ﻿using Ryujinx.HLE.HOS.Kernel.Common;
 using Ryujinx.HLE.HOS.Kernel.Threading;
 using Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostChannel.Types;
+using Ryujinx.Memory;
 using System;
 
 namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostChannel
@@ -11,11 +12,11 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostChannel
         private KEvent _smExceptionBptPauseReportEvent;
         private KEvent _errorNotifierEvent;
 
-        public NvHostGpuDeviceFile(ServiceCtx context) : base(context)
+        public NvHostGpuDeviceFile(ServiceCtx context, IVirtualMemoryManager memory, long owner) : base(context, memory, owner)
         {
-            _smExceptionBptIntReportEvent   = new KEvent(context.Device.System);
-            _smExceptionBptPauseReportEvent = new KEvent(context.Device.System);
-            _errorNotifierEvent             = new KEvent(context.Device.System);
+            _smExceptionBptIntReportEvent   = new KEvent(context.Device.System.KernelContext);
+            _smExceptionBptPauseReportEvent = new KEvent(context.Device.System.KernelContext);
+            _errorNotifierEvent             = new KEvent(context.Device.System.KernelContext);
         }
 
         public override NvInternalResult Ioctl2(NvIoctl command, Span<byte> arguments, Span<byte> inlineInBuffer)
@@ -27,7 +28,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostChannel
                 switch (command.Number)
                 {
                     case 0x1b:
-                        result = CallIoctlMethod<SubmitGpfifoArguments, long>(SubmitGpfifoEx, arguments, inlineInBuffer);
+                        result = CallIoctlMethod<SubmitGpfifoArguments, ulong>(SubmitGpfifoEx, arguments, inlineInBuffer);
                         break;
                 }
             }
@@ -55,7 +56,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostChannel
 
             if (targetEvent != null)
             {
-                if (Owner.HandleTable.GenerateHandle(targetEvent.ReadableEvent, out eventHandle) != KernelResult.Success)
+                if (Context.Process.HandleTable.GenerateHandle(targetEvent.ReadableEvent, out eventHandle) != KernelResult.Success)
                 {
                     throw new InvalidOperationException("Out of handles!");
                 }
@@ -70,7 +71,7 @@ namespace Ryujinx.HLE.HOS.Services.Nv.NvDrvServices.NvHostChannel
             return NvInternalResult.Success;
         }
 
-        private NvInternalResult SubmitGpfifoEx(ref SubmitGpfifoArguments arguments, Span<long> inlineData)
+        private NvInternalResult SubmitGpfifoEx(ref SubmitGpfifoArguments arguments, Span<ulong> inlineData)
         {
             return SubmitGpfifo(ref arguments, inlineData);
         }

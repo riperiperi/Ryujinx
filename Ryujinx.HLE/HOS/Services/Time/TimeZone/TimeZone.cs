@@ -183,11 +183,10 @@ namespace Ryujinx.HLE.HOS.Services.Time.TimeZone
         {
             int i = namePosition;
 
-            char c = name[i];
+            char c;
 
-            while (c != '\0' && !char.IsDigit(c) && c != ',' && c != '-' && c != '+')
+            while ((c = name[i]) != '\0' && !char.IsDigit(c) && c != ',' && c != '-' && c != '+')
             {
-                c = name[i];
                 i++;
             }
 
@@ -1707,7 +1706,8 @@ namespace Ryujinx.HLE.HOS.Services.Time.TimeZone
                 Time = new CalendarTime()
                 {
                     Year   = (short)calendarTime.Year,
-                    Month  = calendarTime.Month,
+                    // NOTE: Nintendo's month range is 1-12, internal range is 0-11.
+                    Month = (sbyte)(calendarTime.Month + 1),
                     Day    = calendarTime.Day,
                     Hour   = calendarTime.Hour,
                     Minute = calendarTime.Minute,
@@ -1724,7 +1724,8 @@ namespace Ryujinx.HLE.HOS.Services.Time.TimeZone
             CalendarTimeInternal calendarTimeInternal = new CalendarTimeInternal()
             {
                 Year   = calendarTime.Year,
-                Month  = calendarTime.Month,
+                // NOTE: Nintendo's month range is 1-12, internal range is 0-11.
+                Month  = (sbyte)(calendarTime.Month - 1),
                 Day    = calendarTime.Day,
                 Hour   = calendarTime.Hour,
                 Minute = calendarTime.Minute,
