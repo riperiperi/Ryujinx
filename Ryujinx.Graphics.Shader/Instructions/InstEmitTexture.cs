@@ -376,17 +376,15 @@ namespace Ryujinx.Graphics.Shader.Instructions
                 flags |= TextureFlags.Bindless;
             }
 
-            TextureOperation operation = new TextureOperation(
+            TextureOperation operation = context.CreateTextureOperation(
                 Instruction.ImageAtomic,
                 type,
+                format,
                 flags,
                 handle,
                 0,
                 null,
-                sources)
-            {
-                Format = format
-            };
+                sources);
 
             context.Add(operation);
         }
@@ -507,17 +505,15 @@ namespace Ryujinx.Graphics.Shader.Instructions
                 flags |= TextureFlags.Bindless;
             }
 
-            TextureOperation operation = new TextureOperation(
+            TextureOperation operation = context.CreateTextureOperation(
                 Instruction.ImageAtomic,
                 type,
+                format,
                 flags,
                 handle,
                 0,
                 GetDest(),
-                sources)
-            {
-                Format = format
-            };
+                sources);
 
             context.Add(operation);
         }

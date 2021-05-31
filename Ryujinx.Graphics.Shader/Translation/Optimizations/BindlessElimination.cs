@@ -71,7 +71,7 @@ namespace Ryujinx.Graphics.Shader.Translation.Optimizations
 
                         if (texOp.Inst == Instruction.ImageAtomic)
                         {
-                            texOp.Format = config.GetTextureFormatAtomic(texOp.Handle);
+                            texOp.Format = config.GetTextureFormatAtomic(cbufOffset, cbufSlot);
                         }
                         else
                         {

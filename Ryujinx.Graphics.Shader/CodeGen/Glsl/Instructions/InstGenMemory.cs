@@ -154,9 +154,6 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl.Instructions
 
             if (texOp.Inst == Instruction.ImageAtomic)
             {
-                int texIndex = context.FindImageDescriptorIndex(texOp);
-                context.ImageDescriptors[texIndex] = context.ImageDescriptors[texIndex].SetFlag(TextureUsageFlags.ImageStore);
-
                 VariableType type = texOp.Format.GetComponentType();
 
                 if ((texOp.Flags & TextureFlags.AtomicMask) == TextureFlags.CAS)

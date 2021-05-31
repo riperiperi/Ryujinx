@@ -163,12 +163,12 @@ namespace Ryujinx.Graphics.Shader.Translation
             return format == TextureFormat.R32Sint || format == TextureFormat.R32Uint;
         }
 
-        public TextureFormat GetTextureFormatAtomic(int handle)
+        public TextureFormat GetTextureFormatAtomic(int handle, int cbufSlot = -1)
         {
             // Atomic image instructions do not support GL_EXT_shader_image_load_formatted, 
             // and must have a type specified. Default to R32Sint if not available.
 
-            var format = GpuAccessor.QueryTextureFormat(handle);
+            var format = GpuAccessor.QueryTextureFormat(handle, cbufSlot);
 
             if (!FormatSupportedAtomic(format))
             {
@@ -255,7 +255,7 @@ namespace Ryujinx.Graphics.Shader.Translation
         {
             inst &= Instruction.Mask;
             bool isImage = inst == Instruction.ImageLoad || inst == Instruction.ImageStore;
-            bool isWrite = inst == Instruction.ImageStore;
+            bool isWrite = inst == Instruction.ImageStore || inst == Instruction.ImageAtomic;
             bool accurateType = inst != Instruction.TextureSize && inst != Instruction.Lod;
 
             if (isImage)
