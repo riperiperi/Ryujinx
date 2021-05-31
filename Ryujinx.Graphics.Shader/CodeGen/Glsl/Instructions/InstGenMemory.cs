@@ -119,8 +119,6 @@ namespace Ryujinx.Graphics.Shader.CodeGen.Glsl.Instructions
 
             if (texOp.Inst == Instruction.ImageStore)
             {
-                int texIndex = context.FindImageDescriptorIndex(texOp);
-
                 VariableType type = texOp.Format.GetComponentType();
 
                 string[] cElems = new string[4];
