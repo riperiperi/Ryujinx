@@ -98,7 +98,7 @@ namespace Ryujinx.Graphics.Shader.StructuredIr
                     texOp.Format,
                     texOp.Flags,
                     texOp.CbufSlot,
-                    texOp.  Handle,
+                    texOp.Handle,
                     texOp.Index,
                     sources);
             }
