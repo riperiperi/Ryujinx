@@ -55,6 +55,21 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
                     Words = MemoryMarshal.Cast<byte, int>(context.MemoryManager.GetSpan(EntryAddress, (int)EntryCount * 4, true)).ToArray();
                 }
             }
+
+            /// <summary>
+            /// Gets a memory span for the command buffer.
+            /// </summary>
+            public ReadOnlySpan<int> GetSpan(GpuContext context)
+            {
+                if (Words == null)
+                {
+                    return MemoryMarshal.Cast<byte, int>(context.MemoryManager.GetSpan(EntryAddress, (int)EntryCount * 4, true));
+                }
+                else
+                {
+                    return Words;
+                }
+            }
         }
 
         private readonly ConcurrentQueue<CommandBuffer> _commandBufferQueue;
@@ -147,7 +162,7 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
 
                 if (beforeBarrier && commandBuffer.Type == CommandBufferType.Prefetch)
                 {
-                    commandBuffer.Fetch(_context);
+                    //commandBuffer.Fetch(_context);
                 }
 
                 if (commandBuffer.Type == CommandBufferType.NoPrefetch)
@@ -176,9 +191,9 @@ namespace Ryujinx.Graphics.Gpu.Engine.GPFifo
             while (_ibEnable && !_interrupt && _commandBufferQueue.TryDequeue(out CommandBuffer entry))
             {
                 _currentCommandBuffer = entry;
-                _currentCommandBuffer.Fetch(_context);
+                //_currentCommandBuffer.Fetch(_context);
 
-                _processor.Process(_currentCommandBuffer.Words);
+                _processor.Process(_currentCommandBuffer.GetSpan(_context));
             }
 
             _interrupt = false;
